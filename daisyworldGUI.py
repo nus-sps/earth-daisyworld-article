@@ -133,8 +133,7 @@ class WorldTab(qtw.QWidget):
         return button
     
     def _restore(self):
-        choice = qtw.QMessageBox.question(
-            self,
+        choice = qtw.QMessageBox.question(self,
             "Restore Warning!",
             "Are you sure you want to restore the default values?",
             qtw.QMessageBox.Yes | qtw.QMessageBox.No
@@ -168,6 +167,8 @@ class WorldTab(qtw.QWidget):
     def _box2dw(self):
         for i in range(len(self.inputboxes)):
             self.DW.parameters[i].setValue(float(self.inputboxes[i].text()))
+        if hasattr(self.DW, "Ab0") and hasattr(self.DW, "Aw0"):
+            p = Parameter("Initial Total Daisy Area", "_", self.DW.Ab0.value + self.DW.Aw0.value, unitRange=True)
 
 class PlotCanvas1(FigureCanvas):
     def __init__(self, daisyWorld, dt=0.025, width=10, height=12, dpi=100):
@@ -192,7 +193,6 @@ class PlotCanvas1(FigureCanvas):
         self.timer.stop()
 
     def figInit(self):
-        # State Space Background
         arr_A = np.linspace(0, 1, num=101)
         self.ssp.plot(arr_A, np.zeros(arr_A.shape), ':', color='#8080ff')  # zero line
         self.ssp.plot(arr_A, self.DW.v(arr_A), '-', color='#8080ff')
@@ -227,33 +227,89 @@ class PlotCanvas1(FigureCanvas):
         self.tip.set_ylim(0, 1)
         self.ssp.set_xlabel('Daisy Area ($A$)')
         self.ssp.set_ylabel('$dA/dt$')
+        self.ssp.set_xlim(0, 1)
 
 class PlotCanvas2(FigureCanvas):
-    def __init__(self, daisyworld, width=10, height=12, dpi=100):
+    def __init__(self, daisyWorld, dt=0.1, width=10, height=12, dpi=100):
         fig = Figure(figsize=(width, height), dpi=dpi)
+        self.DW = daisyWorld
+        self.dt = dt
         self.tip = fig.add_subplot(121)
         self.ssp = fig.add_subplot(122)
+        self.figInit()
         FigureCanvas.__init__(self, fig)
 
         self.timer = qtc.QTimer(self)
         self.timer.timeout.connect(self.figUpdate)
 
-    def figInit(self):  # State Space Background
-        pass
+
+    def updateDaisyWorld(self, daisyWorld):
+        self.DW = daisyWorld
+
+    def figRun(self, milliseconds=1):
+        self.timer.start(milliseconds)
+    
+    def figStop(self):
+        self.timer.stop()
+
+    def figInit(self):
+        Aws, Abs = np.mgrid[0:1:100j, 0:1:100j]
+        vbs = self.DW.vb(Abs, Aws)
+        vws = self.DW.vw(Abs, Aws)
+        mask = np.zeros(vws.shape, dtype=bool)
+        for i in range(len(vws)):
+            vws[i, len(vws) - i:] = np.nan
+            vws = np.ma.array(vws, mask=mask)
+        self.ssp.streamplot(Abs, Aws, vbs, vws, color='#8080ff', density=1.5, linewidth=1)
+        self._axesSet()
+        self.time = []
+        self.areasB = []
+        self.areasW = []
+        self.velosB = []
+        self.velosW = []
+        self.t = 0
+        self.Ab = self.DW.Ab0.value
+        self.Aw = self.DW.Aw0.value
 
     def figUpdate(self):
-        pass
+        self.t += self.dt
+        self.Ab += self.DW.vb(self.Ab, self.Aw) * self.dt
+        self.Aw += self.DW.vw(self.Ab, self.Aw) * self.dt
+        self.vb = self.DW.vb(self.Ab, self.Aw)
+        self.vw = self.DW.vw(self.Ab, self.Aw)
+        self.time.append(self.t)
+        self.areasB.append(self.Ab)
+        self.areasW.append(self.Aw)
+        self.velosB.append(self.vb)
+        self.velosW.append(self.vw)
+        self.tip.plot(self.time, self.areasB, color='#ffC000', marker='.')
+        self.tip.plot(self.time, self.areasW, color='#ff00C0', marker='.')
+        self.ssp.plot(self.areasB, self.areasW, color='#ff8080', marker='.')
+        self._axesSet()
+        self.draw()
 
     def figClear(self):
-        pass
+        self.tip.cla()
+        self.ssp.cla()
+        self.figInit()
+        self.draw()
+    
+    def _axesSet(self):
+        self.tip.set_xlabel('Time ($t$)')
+        self.tip.set_ylabel('Daisy Area ($A$)')
+        self.tip.set_ylim(0, 1)
+        self.ssp.set_xlabel('Daisy Area ($A$)')
+        self.ssp.set_ylabel('$dA/dt$')
+        self.ssp.set_xlim(-0.05, 1.05)
+        self.ssp.set_ylim(-0.05, 1.05)
 
 class Parameter:
-    def __init__(self, name, short, value, unitRange=False):
+    def __init__(self, name="_", short="_", value=0, unitRange=False):
         self.name = name
         self.short = short
-        self.value = value
-        self.default = value
         self.unitRange = unitRange
+        self.setValue(value)
+        self.default = self.value
     
     def setValue(self, value):
         if self.unitRange:
@@ -300,8 +356,8 @@ class DaisyWorld1:
 class DaisyWorld2:
     def __init__(self):
         self.parameters = []
-        self._addParameter("Ab0", Parameter("Initial Black Daisy Area", "A<sub>b</sub><sup>t=0</sup>", 0.33, unitRange=True))
-        self._addParameter("Aw0", Parameter("Initial White Daisy Area", "A<sub>w</sub><sup>t=0</sup>", 0.65, unitRange=True))
+        self._addParameter("Ab0", Parameter("Initial Black Daisy Area", "A<sub>b</sub><sup>t=0</sup>", 0.87, unitRange=True))
+        self._addParameter("Aw0", Parameter("Initial White Daisy Area", "A<sub>w</sub><sup>t=0</sup>", 0.11, unitRange=True))
         self._addParameter("L", Parameter("Luminosity", "L", 1.))
         self._addParameter("ab", Parameter("Black Daisy Albedo", "a<sub>b</sub>", 0.25, unitRange=True))
         self._addParameter("aw", Parameter("White Daisy Albedo", "a<sub>w</sub>", 0.75, unitRange=True))
