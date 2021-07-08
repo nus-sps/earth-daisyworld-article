@@ -45,8 +45,8 @@ for i in range(len(time)):
     Aw += vw(Ab, Aw, L) * dt
 
 # Plot
-data = (time, black_areas, white_areas)
-utils2d.plot_time_iteration(data)
+utils2d.plot_time_iteration(time, black_areas, white_areas)
+plt.show()
 
 ### SPACE STATE PICTURE ###
 
@@ -60,8 +60,8 @@ equilibria = utils2d.equilibrium(vb, vw, L)
 print(equilibria)
 
 # Plot
-data = (Abs, Aws, vbs, vws)
-utils2d.plot_state_space(data, equilibria)
+utils2d.plot_state_space(Abs, Aws, vbs, vws, eqs=equilibria)
+plt.show()
 
 ### COMPLETE PICTURE ###
 
@@ -69,10 +69,7 @@ utils2d.plot_state_space(data, equilibria)
 t_data = (time, black_areas, white_areas)
 s_data = (Abs, Aws, vbs, vws)
 ani = utils2d.animated_comparison(t_data, s_data, equilibria)
-
-# Display
-from IPython.display import HTML
-HTML(ani.to_jshtml())
+plt.show()
 
 # Bifurcation Plot with respect to Luminosity
 lumins = np.arange(0.5, 1.8, 0.02)
@@ -80,5 +77,5 @@ eqs = []
 for l in lumins:
     eqs.append(utils2d.equilibrium(vb, vw, l))
 
-data = (lumins, eqs)
-utils2d.plot_bifurcation(data, elev=12.5, azim=-132.5)
+utils2d.plot_bifurcation(lumins, eqs, elev=12.5, azim=-132.5)
+plt.show()

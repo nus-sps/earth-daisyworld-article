@@ -33,8 +33,8 @@ for i in range(len(time)):
     A += v(A, L) * dt
 
 # Plot
-data = (time, areas)
-utils1d.plot_time_iteration(data)
+utils1d.plot_time_iteration(time, areas)
+plt.show()
 
 ### STATE SPACE PICTURE ###
 
@@ -47,8 +47,8 @@ equilibria = utils1d.equilibrium(v, L)
 print(equilibria)
 
 # Plot
-data = (arr_A, arr_v)
-utils1d.plot_state_space(data, equilibria)
+utils1d.plot_state_space(arr_A, arr_v, eqs=equilibria)
+plt.show()
 
 ### COMPLETE PICTURE ###
 
@@ -57,10 +57,7 @@ t_data = (time, areas)
 s_data = (arr_A, arr_v)
 v_data = v(areas, L)
 ani = utils1d.animated_comparison(t_data, s_data, v_data, equilibria)
-
-# Display
-from IPython.display import HTML
-HTML(ani.to_jshtml())
+plt.show()
 
 # Bifurcation Plot with respect to Luminosity
 lumins = np.arange(0.5, 1.8, 0.02)
@@ -68,5 +65,5 @@ eqs = []
 for l in lumins:
     eqs.append(utils1d.equilibrium(v, l))
 
-data = (lumins, eqs)
-utils1d.plot_bifurcation(data)
+utils1d.plot_bifurcation(lumins, eqs)
+plt.show()

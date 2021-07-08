@@ -5,7 +5,6 @@ from scipy.optimize import minimize
 
 _modes = ['display', 'save']
 
-
 def equilibrium(v, L):
     # Auxillary Function for Cost (to be minimised)
     def cost(A):
@@ -35,8 +34,7 @@ def equilibrium(v, L):
 
     return solutions, nature
 
-
-def _tip(x, y, ax=None):
+def plot_time_iteration(x, y, ax=None):
     ax = ax or plt.gca()
     ax.plot(x, y, color='#8080ff')
 
@@ -46,8 +44,7 @@ def _tip(x, y, ax=None):
     ax.set_xlabel('$t$', fontsize=15)
     ax.set_ylabel('$A$', fontsize=15)
 
-
-def _ssp(x, y, eqs, ax=None):
+def plot_state_space(x, y, eqs=None, ax=None):
     ax = ax or plt.gca()
     ax.plot(x, np.zeros(x.shape), ':', color='#ff8080')  # zero line
     ax.plot(x, y, '-', color='#ff8080')
@@ -72,31 +69,6 @@ def _ssp(x, y, eqs, ax=None):
     ax.set_xlabel('$A$', fontsize=15)
     ax.set_ylabel('$dA/dt$', fontsize=15)
 
-
-def plot_time_iteration(data, mode='display', filename='1D_time_iteration.png'):
-    x, y = data
-    _tip(x, y)
-
-    if mode == 'display':
-        plt.show()
-    elif mode == 'save':
-        plt.savefig(filename)
-    else:
-        raise ValueError('Invalid mode. Expected one of: {}'.format(_modes))
-
-
-def plot_state_space(data, eqs=None, mode='display', filename='1D_state_space.png'):
-    x, y = data
-    _ssp(x, y, eqs)
-
-    if mode == 'display':
-        plt.show()
-    elif mode == 'save':
-        plt.savefig(filename)
-    else:
-        raise ValueError('Invalid mode. Expected one of: {}'.format(_modes))
-
-
 def animated_comparison(t_data, s_data, v_data, eqs=None):
     tx, ty = t_data
     sx, sy = s_data
@@ -106,8 +78,8 @@ def animated_comparison(t_data, s_data, v_data, eqs=None):
     ax1 = fig.add_subplot(121, adjustable='box')
     ax2 = fig.add_subplot(122, adjustable='box')
 
-    _tip(tx, ty, ax=ax1)
-    _ssp(sx, sy, eqs, ax=ax2)
+    plot_time_iteration(tx, ty, ax=ax1)
+    plot_state_space(sx, sy, eqs, ax=ax2)
 
     # Trajectory Animation
     tip_line, = ax1.plot(tx[0], ty[0], color='k', linewidth=3)
@@ -121,13 +93,10 @@ def animated_comparison(t_data, s_data, v_data, eqs=None):
     ani = animation.FuncAnimation(fig, update, len(tx),
                                   fargs=[tip_line, ssp_line],
                                   interval=20 * 1e3 / len(tx), blit=True, repeat=False)
-
     return ani
 
-
-def plot_bifurcation(data, mode='display', filename='1D_bifurcation.png'):
-    x, y = data
-
+def plot_bifurcation(x, y):
+    plt.figure()
     ax = plt.gca()
 
     labels = {'s': 'Stable', 'u': 'Unstable'}
@@ -149,10 +118,3 @@ def plot_bifurcation(data, mode='display', filename='1D_bifurcation.png'):
     ax.set_ylim(min(x), max(x))
     ax.set_xlabel('$A$', fontsize=15)
     ax.set_ylabel('$L$', fontsize=15)
-
-    if mode == 'display':
-        plt.show()
-    elif mode == 'save':
-        plt.savefig(filename)
-    else:
-        raise ValueError('Invalid mode. Expected one of: {}'.format(_modes))

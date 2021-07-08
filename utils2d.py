@@ -7,7 +7,6 @@ from scipy.misc import derivative
 
 _modes = ['display', 'save']
 
-
 def equilibrium(vb, vw, L):
     # Auxillary Function for Cost (to be minimised)
     def cost(A):
@@ -57,8 +56,7 @@ def equilibrium(vb, vw, L):
 
     return solutions, nature
 
-
-def _tip(x, yb, yw, ax=None):
+def plot_time_iteration(x, yb, yw, ax=None):
     ax = ax or plt.gca()
     ax.plot(x, yb, color='#8080ff', label='$A_b$')
     ax.plot(x, yw, color='#ff80ff', label='$A_w$')
@@ -70,8 +68,7 @@ def _tip(x, yb, yw, ax=None):
     ax.set_ylabel('$A$', fontsize=15)
     ax.legend(fontsize=12)
 
-
-def _ssp(xb, xw, yb, yw, eqs, ax=None):
+def plot_state_space(xb, xw, yb, yw, eqs=None, ax=None):
     # Impose Region Constraint (Ab+Aw >= 1)
     mask = np.zeros(yw.shape, dtype=bool)
     for i in range(len(yw)):
@@ -102,31 +99,6 @@ def _ssp(xb, xw, yb, yw, eqs, ax=None):
     ax.set_ylabel('$A_w$', fontsize=15)
     ax.legend(fontsize=12)
 
-
-def plot_time_iteration(data, mode='display', filename='2D_time_iteration.png'):
-    x, yb, yw = data
-    _tip(x, yb, yw)
-
-    if mode == 'display':
-        plt.show()
-    elif mode == 'save':
-        plt.savefig(filename)
-    else:
-        raise ValueError('Invalid mode. Expected one of: {}'.format(_modes))
-
-
-def plot_state_space(data, eqs=None, mode='display', filename='2D_state_space.png'):
-    xb, xw, yb, yw = data
-    _ssp(xb, xw, yb, yw, eqs)
-
-    if mode == 'display':
-        plt.show()
-    elif mode == 'save':
-        plt.savefig(filename)
-    else:
-        raise ValueError('Invalid mode. Expected one of: {}'.format(_modes))
-
-
 def animated_comparison(t_data, s_data, eqs=None):
     tx, tyb, tyw = t_data
     sxb, sxw, syb, syw = s_data
@@ -135,8 +107,8 @@ def animated_comparison(t_data, s_data, eqs=None):
     ax1 = fig.add_subplot(121, adjustable='box')
     ax2 = fig.add_subplot(122, adjustable='box', aspect=1)
 
-    _tip(tx, tyw, tyb, ax=ax1)
-    _ssp(sxb, sxw, syb, syw, eqs, ax=ax2)
+    plot_time_iteration(tx, tyw, tyb, ax=ax1)
+    plot_state_space(sxb, sxw, syb, syw, eqs, ax=ax2)
 
     # Trajectory Animation
     tip_line_b, = ax1.plot(tx[0], tyb[0], color='k', linewidth=3)
@@ -155,10 +127,8 @@ def animated_comparison(t_data, s_data, eqs=None):
 
     return ani
 
-
-def plot_bifurcation(data, elev=12.5, azim=-132.5, mode='display', filename='2D_bifurcation.png'):
-    x, y = data
-
+def plot_bifurcation(x, y, elev=12.5, azim=-132.5):
+    plt.figure()
     ax = plt.gca(projection='3d')
 
     labels = {'s': 'Stable', 'u': 'Unstable'}
@@ -184,10 +154,3 @@ def plot_bifurcation(data, elev=12.5, azim=-132.5, mode='display', filename='2D_
     ax.set_zlabel('$L$', fontsize=15)
     ax.legend(fontsize=12)
     ax.view_init(elev=elev, azim=azim)
-
-    if mode == 'display':
-        plt.show()
-    elif mode == 'save':
-        plt.savefig(filename)
-    else:
-        raise ValueError('Invalid mode. Expected one of: {}'.format(_modes))
