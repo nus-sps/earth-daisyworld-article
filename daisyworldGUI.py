@@ -81,8 +81,10 @@ class WorldTab(qtw.QWidget):
         for p in self.DW.parameters:
             inputbox = self._newInputBox(str(p.value))
             self.inputboxes.append(inputbox)
-            layoutInputBoxes.addRow("{} ({})".format(p.name, p.short), inputbox)
-
+            if p.unitRange:
+                layoutInputBoxes.addRow("{}* ({})".format(p.name, p.short), inputbox)
+            else:
+                layoutInputBoxes.addRow("{} ({})".format(p.name, p.short), inputbox)
         # Buttons
         layoutButtons = qtw.QHBoxLayout()
         self.buttons = [
@@ -91,6 +93,7 @@ class WorldTab(qtw.QWidget):
         ]
         self.buttons[0].clicked.connect(self._restore)
         self.buttons[1].clicked.connect(self._run)
+        layoutButtons.addWidget(qtw.QLabel("*from 0 to 1"))
         layoutButtons.addStretch()
         for b in self.buttons:
             layoutButtons.addWidget(b)
@@ -154,9 +157,9 @@ class WorldTab(qtw.QWidget):
                 self.canvas.figInit()
                 self.canvas.figRun()
                 self.isRunning = not self.isRunning
-                self.buttons[1].setStyleSheet("color: black; font-size: 28px")
+                self.buttons[1].setStyleSheet("color: black; font-size: 27px")
             except Exception as e:
-                self.buttons[1].setStyleSheet("color: red; font-size: 28px")
+                self.buttons[1].setStyleSheet("color: red; font-size: 27px")
 
     def _dw2box(self):
         for i in range(len(self.inputboxes)):
@@ -164,7 +167,7 @@ class WorldTab(qtw.QWidget):
 
     def _box2dw(self):
         for i in range(len(self.inputboxes)):
-            self.DW.parameters[i].value = float(self.inputboxes[i].text())
+            self.DW.parameters[i].setValue(float(self.inputboxes[i].text()))
 
 class PlotCanvas1(FigureCanvas):
     def __init__(self, daisyWorld, dt=0.025, width=10, height=12, dpi=100):
@@ -244,28 +247,38 @@ class PlotCanvas2(FigureCanvas):
     def figClear(self):
         pass
 
-class Parameter(object):
-    def __init__(self, name, short, value):
+class Parameter:
+    def __init__(self, name, short, value, unitRange=False):
         self.name = name
         self.short = short
         self.value = value
         self.default = value
+        self.unitRange = unitRange
     
+    def setValue(self, value):
+        if self.unitRange:
+            if (value < 0) or (1 < value):
+                raise ValueError("Parameter value out of range!")
+            else:
+                self.value = value
+        else:
+            self.value = value
+                
     def resetValue(self):
         self.value = self.default
 
 class DaisyWorld1:
     def __init__(self):
         self.parameters = []
-        self._addParameter("A0", Parameter("Initial Daisy Area", "A<sup>t=0</sup>", 0.92))
+        self._addParameter("A0", Parameter("Initial Daisy Area", "A<sup>t=0</sup>", 0.92, unitRange=True))
         self._addParameter("L", Parameter("Luminosity", "L", 1.))
-        self._addParameter("ai", Parameter("Daisy Albedo", "a<sub>i</sub>", 0.75))
-        self._addParameter("ag", Parameter("Ground Albedo", "a<sub>g</sub>", 0.5))
-        self._addParameter("R", Parameter("Insulation Constant", "R", 0.2))
+        self._addParameter("ai", Parameter("Daisy Albedo", "a<sub>i</sub>", 0.75, unitRange=True))
+        self._addParameter("ag", Parameter("Ground Albedo", "a<sub>g</sub>", 0.5, unitRange=True))
+        self._addParameter("R", Parameter("Insulation Constant", "R", 0.2, unitRange=True))
         self._addParameter("S", Parameter("Solar Constant", "S", 917.))
         self._addParameter("sigma", Parameter("Stefan-Boltzmann Constant", "σ", 5.67e-8))
         self._addParameter("Ti", Parameter("Ideal Growth Temperature", "T<sub>i</sub>", 22.5))
-        self._addParameter("gamma", Parameter("Death Rate", "γ", 0.3))
+        self._addParameter("gamma", Parameter("Death Rate", "γ", 0.3, unitRange=True))
         
     def _addParameter(self, attribute, parameter):
         setattr(self, attribute, parameter)
@@ -287,17 +300,17 @@ class DaisyWorld1:
 class DaisyWorld2:
     def __init__(self):
         self.parameters = []
-        self._addParameter("Ab0", Parameter("Initial Black Daisy Area", "A<sub>b</sub><sup>t=0</sup>", 0.33))
-        self._addParameter("Aw0", Parameter("Initial White Daisy Area", "A<sub>w</sub><sup>t=0</sup>", 0.65))
+        self._addParameter("Ab0", Parameter("Initial Black Daisy Area", "A<sub>b</sub><sup>t=0</sup>", 0.33, unitRange=True))
+        self._addParameter("Aw0", Parameter("Initial White Daisy Area", "A<sub>w</sub><sup>t=0</sup>", 0.65, unitRange=True))
         self._addParameter("L", Parameter("Luminosity", "L", 1.))
-        self._addParameter("ab", Parameter("Black Daisy Albedo", "a<sub>b</sub>", 0.25))
-        self._addParameter("aw", Parameter("White Daisy Albedo", "a<sub>w</sub>", 0.75))
-        self._addParameter("ag", Parameter("Ground Albedo", "a<sub>g</sub>", 0.5))
-        self._addParameter("R", Parameter("Insulation Constant", "R", 0.2))
+        self._addParameter("ab", Parameter("Black Daisy Albedo", "a<sub>b</sub>", 0.25, unitRange=True))
+        self._addParameter("aw", Parameter("White Daisy Albedo", "a<sub>w</sub>", 0.75, unitRange=True))
+        self._addParameter("ag", Parameter("Ground Albedo", "a<sub>g</sub>", 0.5, unitRange=True))
+        self._addParameter("R", Parameter("Insulation Constant", "R", 0.2, unitRange=True))
         self._addParameter("S", Parameter("Solar Constant", "S", 917.))
         self._addParameter("sigma", Parameter("Stefan-Boltzmann Constant", "σ", 5.67e-8))
         self._addParameter("Ti", Parameter("Ideal Growth Temperature", "T<sub>i</sub>", 22.5))
-        self._addParameter("gamma", Parameter("Death Rate", "γ", 0.3))
+        self._addParameter("gamma", Parameter("Death Rate", "γ", 0.3, unitRange=True))
 
     def _addParameter(self, attribute, parameter):
         setattr(self, attribute, parameter)
