@@ -5,6 +5,8 @@ import PyQt5.QtCore as qtc
 import numpy as np
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from matplotlib import rcParams
+rcParams['font.size'] = 18
 
 class MainWindow(qtw.QMainWindow):
     def __init__(self):
@@ -74,9 +76,9 @@ class WorldTab(qtw.QWidget):
         layout = qtw.QVBoxLayout()
         self.setLayout(layout)
         
-        # Initialize Daisyworld
+        # Initialize Daisyworld and Canvas
         self.isRunning = False
-        self.initDaisyWorld()
+        self._initDWCV()
 
         # Parameter Input Boxes
         layoutInputBoxes = qtw.QFormLayout()
@@ -90,19 +92,16 @@ class WorldTab(qtw.QWidget):
         layoutButtons = qtw.QHBoxLayout()
         self.buttons = [
             self._newButton("Restore default values"),
-            self._newButton("Stop"),
             self._newButton("Run!")
         ]
         self.buttons[0].clicked.connect(self._restore)
-        self.buttons[1].clicked.connect(self._stop)
-        self.buttons[2].clicked.connect(self._run)
+        self.buttons[1].clicked.connect(self._run)
         layoutButtons.addStretch()
         for b in self.buttons:
             layoutButtons.addWidget(b)
 
         # Plots
         layoutPlots = qtw.QHBoxLayout()
-        self.canvas = PlotCanvas()
         layoutPlots.addWidget(self.canvas)
 
         # And finally...
@@ -110,11 +109,17 @@ class WorldTab(qtw.QWidget):
         layout.addLayout(layoutButtons)
         layout.addLayout(layoutPlots)
 
-    def initDaisyWorld(self):
+    def _initDWCV(self):
         if self.dimension == 1:
             self.DW = DaisyWorld1()
+            self.canvas = PlotCanvas1(self.DW)
         elif self.dimension == 2:
             self.DW = DaisyWorld2()
+            self.canvas = PlotCanvas2(self.DW)
+    
+    def _restoreDWCV(self):
+        self.DW.restoreDefaults()
+        self.canvas.updateDaisyWorld(self.DW)
 
     def _newInputBox(self, text, width=300):
         inputbox = qtw.QLineEdit()
@@ -137,16 +142,9 @@ class WorldTab(qtw.QWidget):
             qtw.QMessageBox.Yes | qtw.QMessageBox.No
         )
         if choice == qtw.QMessageBox.Yes:
-            self.initDaisyWorld()
-            # Restoring part here
+            self.DW.restoreDefaults()
             for i in range(len(self.inputboxes)):
                 self.inputboxes[i].setText(str(self.DW.parameters[i].value))
-
-    def _stop(self):
-        self.isRunning = False
-        self.initDaisyWorld()
-        self._toggleRun()
-        self.canvas.figClear()
 
     def _run(self):
         self.isRunning = not self.isRunning
@@ -154,14 +152,73 @@ class WorldTab(qtw.QWidget):
     
     def _toggleRun(self):
         if self.isRunning:
-            self.buttons[2].setText("Pause")
-            self.canvas.timer.start(200)
+            self.buttons[1].setText("Stop")
+            self.canvas.figClear()
+            self.canvas.figInit()
+            self.canvas.figRun()
         else:
-            self.buttons[2].setText("Run!")
-            self.canvas.timer.stop()
+            self.buttons[1].setText("Rerun!")
+            self.canvas.figStop()
 
-class PlotCanvas(FigureCanvas):
-    def __init__(self, width=10, height=12, dpi=100):
+class PlotCanvas1(FigureCanvas):
+    def __init__(self, daisyWorld, dt=0.025, width=10, height=12, dpi=100):
+        fig = Figure(figsize=(width, height), dpi=dpi)
+        self.DW = daisyWorld
+        self.dt = dt
+        self.tip = fig.add_subplot(121)
+        self.ssp = fig.add_subplot(122)
+        FigureCanvas.__init__(self, fig)
+
+        self.timer = qtc.QTimer(self)
+        self.timer.timeout.connect(self.figUpdate)
+    
+    def updateDaisyWorld(self, daisyWorld):
+        self.DW = daisyWorld
+
+    def figRun(self, milliseconds=1):
+        self.timer.start(milliseconds)
+    
+    def figStop(self):
+        self.timer.stop()
+
+    def figInit(self):
+        # State Space Background
+        arr_A = np.linspace(0, 1, num=101)
+        self.ssp.plot(arr_A, np.zeros(arr_A.shape), ':', color='#8080ff')  # zero line
+        self.ssp.plot(arr_A, self.DW.v(arr_A), '-', color='#8080ff')
+        self._axesSet()
+        self.time = []
+        self.areas = []
+        self.velos = []
+        self.t = 0
+        self.A = self.DW.A0.value
+
+    def figUpdate(self):
+        self.t += self.dt
+        self.A += self.DW.v(self.A) * self.dt
+        self.v = self.DW.v(self.A)
+        self.time.append(self.t)
+        self.velos.append(self.v)
+        self.areas.append(self.A)
+        self.tip.plot(self.time, self.areas, color='#ff8080', marker='.')
+        self.ssp.plot(self.areas, self.velos, color='#ff8080', marker='.')
+        self._axesSet()
+        self.draw()
+
+    def figClear(self):
+        self.tip.cla()
+        self.ssp.cla()
+        self.draw()
+    
+    def _axesSet(self):
+        self.tip.set_xlabel('Time ($t$)')
+        self.tip.set_ylabel('Daisy Area ($A$)')
+        self.tip.set_ylim(0, 1)
+        self.ssp.set_xlabel('Daisy Area ($A$)')
+        self.ssp.set_ylabel('$dA/dt$')
+
+class PlotCanvas2(FigureCanvas):
+    def __init__(self, daisyworld, width=10, height=12, dpi=100):
         fig = Figure(figsize=(width, height), dpi=dpi)
         self.tip = fig.add_subplot(121)
         self.ssp = fig.add_subplot(122)
@@ -170,32 +227,42 @@ class PlotCanvas(FigureCanvas):
         self.timer = qtc.QTimer(self)
         self.timer.timeout.connect(self.figUpdate)
 
+    def figInit(self):  # State Space Background
+        pass
+
     def figUpdate(self):
-        l = [np.random.randint(0, 10) for i in range(4)]
-        self.tip.plot([0, 1, 2, 3], l, 'r')
-        self.ssp.plot([0,1,2,3], l, 'b')
-        self.draw()
+        pass
 
     def figClear(self):
-        self.tip.cla()
-        self.ssp.cla()
-        self.draw()
+        pass
+
+class Parameter(object):
+    def __init__(self, name, short, value):
+        self.name = name
+        self.short = short
+        self.value = value
 
 class DaisyWorld1:
     def __init__(self):
+        self._defaults = []
         self.parameters = []
-        self._add_parameter("L", Parameter("Luminosity", "L", 1.))
-        self._add_parameter("ai", Parameter("Daisy Albedo", "a<sub>i</sub>", 0.75))
-        self._add_parameter("ag", Parameter("Ground Albedo", "a<sub>g</sub>", 0.5))
-        self._add_parameter("R", Parameter("Insulation Constant", "R", 0.2))
-        self._add_parameter("S", Parameter("Solar Constant", "S", 917))
-        self._add_parameter("sigma", Parameter("Stefan-Boltzmann Constant", "σ", 5.67e-8))
-        self._add_parameter("Ti", Parameter("Ideal Growth Temperature", "T<sub>i</sub>", 22.5))
-        self._add_parameter("gamma", Parameter("Death Rate", "γ", 0.3))
+        self._addParameter("A0", Parameter("Initial Daisy Area", "A<sup>t=0</sup>", 0.92))
+        self._addParameter("L", Parameter("Luminosity", "L", 1.))
+        self._addParameter("ai", Parameter("Daisy Albedo", "a<sub>i</sub>", 0.75))
+        self._addParameter("ag", Parameter("Ground Albedo", "a<sub>g</sub>", 0.5))
+        self._addParameter("R", Parameter("Insulation Constant", "R", 0.2))
+        self._addParameter("S", Parameter("Solar Constant", "S", 917))
+        self._addParameter("sigma", Parameter("Stefan-Boltzmann Constant", "σ", 5.67e-8))
+        self._addParameter("Ti", Parameter("Ideal Growth Temperature", "T<sub>i</sub>", 22.5))
+        self._addParameter("gamma", Parameter("Death Rate", "γ", 0.3))
 
-    def _add_parameter(self, attribute, parameter):
+    def _addParameter(self, attribute, parameter):
         setattr(self, attribute, parameter)
+        self._defaults.append(parameter)
         self.parameters.append(parameter)
+
+    def restoreDefaults(self):
+        self.parameters = self._defaults.copy()
 
     # dA/dt Function
     def v(self, A):
@@ -208,20 +275,27 @@ class DaisyWorld1:
 
 class DaisyWorld2:
     def __init__(self):
+        self._defaults = []
         self.parameters = []
-        self._add_parameter("L", Parameter("Luminosity", "L", 1.))
-        self._add_parameter("ab", Parameter("Black Daisy Albedo", "a<sub>b</sub>", 0.25))
-        self._add_parameter("aw", Parameter("White Daisy Albedo", "a<sub>w</sub>", 0.75))
-        self._add_parameter("ag", Parameter("Ground Albedo", "a<sub>g</sub>", 0.5))
-        self._add_parameter("R", Parameter("Insulation Constant", "R", 0.2))
-        self._add_parameter("S", Parameter("Solar Constant", "S", 917))
-        self._add_parameter("sigma", Parameter("Stefan-Boltzmann Constant", "σ", 5.67e-8))
-        self._add_parameter("Ti", Parameter("Ideal Growth Temperature", "T<sub>i</sub>", 22.5))
-        self._add_parameter("gamma", Parameter("Death Rate", "γ", 0.3))
+        self._addParameter("Ab0", Parameter("Initial Black Daisy Area", "A<sub>b</sub><sup>t=0</sup>", 0.33))
+        self._addParameter("Aw0", Parameter("Initial White Daisy Area", "A<sub>w</sub><sup>t=0</sup>", 0.65))
+        self._addParameter("L", Parameter("Luminosity", "L", 1.))
+        self._addParameter("ab", Parameter("Black Daisy Albedo", "a<sub>b</sub>", 0.25))
+        self._addParameter("aw", Parameter("White Daisy Albedo", "a<sub>w</sub>", 0.75))
+        self._addParameter("ag", Parameter("Ground Albedo", "a<sub>g</sub>", 0.5))
+        self._addParameter("R", Parameter("Insulation Constant", "R", 0.2))
+        self._addParameter("S", Parameter("Solar Constant", "S", 917))
+        self._addParameter("sigma", Parameter("Stefan-Boltzmann Constant", "σ", 5.67e-8))
+        self._addParameter("Ti", Parameter("Ideal Growth Temperature", "T<sub>i</sub>", 22.5))
+        self._addParameter("gamma", Parameter("Death Rate", "γ", 0.3))
 
-    def _add_parameter(self, attribute, parameter):
+    def _addParameter(self, attribute, parameter):
         setattr(self, attribute, parameter)
+        self._defaults.append(parameter)
         self.parameters.append(parameter)
+
+    def restoreDefaults(self):
+        self.parameters = self._defaults.copy()
 
     # dA/dt of Black Daisy
     def vb(self, Ab, Aw):
@@ -240,12 +314,6 @@ class DaisyWorld2:
              (ap - self.aw.value) + (Te ** 4)) ** 0.25  # White Daisy Temp
         bw = 1 - (0.003265 * ((273.15 + self.Ti.value) - Tw) ** 2)  # White Daisy Growth Rate
         return Aw * ((1 - Aw - Ab) * bw - self.gamma.value)
-
-class Parameter(object):
-    def __init__(self, name, short, value):
-        self.name = name
-        self.short = short
-        self.value = value
 
 if __name__ == "__main__":
     app = qtw.QApplication(sys.argv)
