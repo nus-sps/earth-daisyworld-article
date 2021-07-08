@@ -3,8 +3,6 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.optimize import minimize
 
-_modes = ['display', 'save']
-
 def equilibrium(v, L):
     # Auxillary Function for Cost (to be minimised)
     def cost(A):

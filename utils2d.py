@@ -5,8 +5,6 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy.optimize import minimize
 from scipy.misc import derivative
 
-_modes = ['display', 'save']
-
 def equilibrium(vb, vw, L):
     # Auxillary Function for Cost (to be minimised)
     def cost(A):
