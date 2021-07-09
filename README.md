@@ -18,3 +18,5 @@ The Daisyworld model was originally devised by Andrew Watson and James Lovelock,
 ## Further Reading
 
 ## License
+The project is licensed under the terms of GPL-3.0-or-later. More information about the license [here](https://www.gnu.org/licenses/).\
+Author: Kun Hee Park

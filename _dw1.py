@@ -1,3 +1,7 @@
+# This file is part of the Daisyworld project <https://github.com/nus-sps/earth-daisyworld-article>
+# The project is licensed under the terms of GPL-3.0-or-later. <https://www.gnu.org/licenses/>
+# Author: Kun Hee Park
+
 import numpy as np
 import matplotlib.pyplot as plt
 import utils1d

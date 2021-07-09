@@ -1,3 +1,7 @@
+# This file is part of the Daisyworld project <https://github.com/nus-sps/earth-daisyworld-article>
+# The project is licensed under the terms of GPL-3.0-or-later. <https://www.gnu.org/licenses/>
+# Author: Kun Hee Park
+
 import sys
 import PyQt5.QtWidgets as qtw
 import PyQt5.QtGui as qtg
@@ -23,7 +27,10 @@ class MainWindow(qtw.QMainWindow):
         menuHelp = menubar.addMenu("&Help")
         actionHelpAbout = qtw.QAction("&About", self)
         actionHelpAbout.triggered.connect(lambda: self._spawnWindow(AboutWindow))
+        actionHelpLicense = qtw.QAction("&License", self)
+        actionHelpLicense.triggered.connect(lambda: self._spawnWindow(LicenseWindow))
         menuHelp.addAction(actionHelpAbout)
+        menuHelp.addAction(actionHelpLicense)
 
         # Main Widget
         mainWidget = qtw.QWidget(self)
@@ -60,6 +67,31 @@ class AboutWindow(qtw.QWidget):
             "Visit our <a href='https://github.com/nus-sps/earth-daisyworld-article'>Github repository page</a> for more.<br/><br/>" + \
             "More about us:<br/>" + \
             "<a href='http://sps.nus.edu.sg/'>Special Programme in Science, National University of Singapore</a>"
+        )
+        label.setOpenExternalLinks(True)
+        layout.addWidget(label)
+
+class LicenseWindow(qtw.QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Daisyworld - License")
+        self.setWindowIcon(qtg.QIcon('icon.ico'))
+        self.setFont(qtg.QFont("Helvetica", 10))
+        layout = qtw.QVBoxLayout()
+        self.setLayout(layout)
+        
+        label = qtw.QLabel()
+        label.setText(
+            "This program is free software: you can redistribute it and/or modify<br/>" + \
+            "it under the terms of the GNU General Public License as published by<br/>" + \
+            "the Free Software Foundation, either version 3 of the License, or<br/>" + \
+            "(at your option) any later version.<br/><br/>" + \
+            "This program is distributed in the hope that it will be useful,<br/>" + \
+            "but WITHOUT ANY WARRANTY; without even the implied warranty of<br/>" + \
+            "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the<br/>" + \
+            "GNU General Public License for more details.<br/><br/>" + \
+            "You should have received a copy of the GNU General Public License<br/>" + \
+            "along with this program.  If not, see <a href='https://www.gnu.org/licenses/'>here</a>."
         )
         label.setOpenExternalLinks(True)
         layout.addWidget(label)
