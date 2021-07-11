@@ -2,11 +2,12 @@
 # The project is licensed under the terms of GPL-3.0-or-later. <https://www.gnu.org/licenses/>
 # Author: Kun Hee Park
 
+import numpy as np
+from scipy.optimize import minimize
 import sys
 import PyQt5.QtWidgets as qtw
 import PyQt5.QtGui as qtg
 import PyQt5.QtCore as qtc
-import numpy as np
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib import rcParams
@@ -42,6 +43,8 @@ class MainWindow(qtw.QMainWindow):
         tabs = qtw.QTabWidget()
         tabs.addTab(WorldTab(1), "One-Daisy")
         tabs.addTab(WorldTab(2), "Two-Daisy")
+        tabs.addTab(WorldTab(1, bifurcation=True), "1D Bifurcation")
+        tabs.addTab(WorldTab(2, bifurcation=True), "2D Bifurcation")
         layout.addWidget(tabs)
 
     def _spawnWindow(self, obj):
@@ -97,9 +100,10 @@ class LicenseWindow(qtw.QWidget):
         layout.addWidget(label)
 
 class WorldTab(qtw.QWidget):
-    def __init__(self, dimension):
+    def __init__(self, dimension, bifurcation=False):
         super().__init__()
         self.dimension = dimension
+        self.bifurcation = bifurcation
         layout = qtw.QVBoxLayout()
         self.setLayout(layout)
 
@@ -158,7 +162,7 @@ class WorldTab(qtw.QWidget):
         return inputbox
     
     def _newButton(self, text, width=300, function=None, *args):
-        button = qtw.QPushButton("&{}".format(text))
+        button = qtw.QPushButton("{}".format(text))
         button.setFixedWidth(width)
         if function is not None:
             button.clicked.connect(lambda: function(*args))
@@ -218,7 +222,7 @@ class PlotCanvas1(FigureCanvas):
     def updateDaisyWorld(self, daisyWorld):
         self.DW = daisyWorld
 
-    def figRun(self, milliseconds=1):
+    def figRun(self, milliseconds=0):
         self.timer.start(milliseconds)
     
     def figStop(self):
@@ -242,8 +246,9 @@ class PlotCanvas1(FigureCanvas):
         self.time.append(self.t)
         self.velos.append(self.v)
         self.areas.append(self.A)
-        self.tip.plot(self.time, self.areas, color='#ff8080', marker='.')
-        self.ssp.plot(self.areas, self.velos, color='#ff8080', marker='.')
+        self.flush_events()
+        self.tip.plot(self.time[-1], self.areas[-1], color='#ff8080', marker='o')
+        self.ssp.plot(self.areas[-1], self.velos[-1], color='#ff8080', marker='o')
         self._axesSet()
         self.draw()
 
@@ -278,7 +283,7 @@ class PlotCanvas2(FigureCanvas):
     def updateDaisyWorld(self, daisyWorld):
         self.DW = daisyWorld
 
-    def figRun(self, milliseconds=1):
+    def figRun(self, milliseconds=0):
         self.timer.start(milliseconds)
     
     def figStop(self):
@@ -292,7 +297,7 @@ class PlotCanvas2(FigureCanvas):
         for i in range(len(vws)):
             vws[i, len(vws) - i:] = np.nan
             vws = np.ma.array(vws, mask=mask)
-        self.ssp.streamplot(Abs, Aws, vbs, vws, color='#8080ff', density=1.5, linewidth=1)
+        self.ssp.streamplot(Abs, Aws, vbs, vws, color='#8080ff', density=1.5, linewidth=2)
         self._axesSet()
         self.time = []
         self.areasB = []
@@ -314,9 +319,10 @@ class PlotCanvas2(FigureCanvas):
         self.areasW.append(self.Aw)
         self.velosB.append(self.vb)
         self.velosW.append(self.vw)
-        self.tip.plot(self.time, self.areasB, color='#ffC000', marker='.')
-        self.tip.plot(self.time, self.areasW, color='#ff00C0', marker='.')
-        self.ssp.plot(self.areasB, self.areasW, color='#ff8080', marker='.')
+        self.flush_events()
+        self.tip.plot(self.time[-1], self.areasB[-1], color='#ffC000', marker='o')
+        self.tip.plot(self.time[-1], self.areasW[-1], color='#ff00C0', marker='o')
+        self.ssp.plot(self.areasB[-1], self.areasW[-1], color='#ff8080', marker='o')
         self._axesSet()
         self.draw()
 
