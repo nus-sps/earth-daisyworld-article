@@ -2,7 +2,6 @@
 # The project is licensed under the terms of GPL-3.0-or-later. <https://www.gnu.org/licenses/>
 # Author: Kun Hee Park
 
-from ast import parse
 import numpy as np
 from scipy.optimize import minimize
 import sys
@@ -43,33 +42,26 @@ class MainWindow(qtw.QMainWindow):
         # Tabs
         tabs = qtw.QTabWidget()
         tabs.addTab(WorldTab(1), "One-Daisy")
-        # tabs.addTab(WorldTab(2), "Two-Daisy")
-        # tabs.addTab(WorldTab(1, bifurcation=True), "1D Bifurcation")
-        # tabs.addTab(WorldTab(2, bifurcation=True), "2D Bifurcation")
+        tabs.addTab(WorldTab(2), "Two-Daisy")
+        tabs.addTab(WorldTab(1, bifurcation=True), "1D Bifurcation")
+        tabs.addTab(WorldTab(2, bifurcation=True), "2D Bifurcation")
         layout.addWidget(tabs)
 
     def _spawnWindow(self, obj):
         self.window = obj()
         self.window.show()
 
-class NotificationWindow(qtw.QWidget):
-    def __init__(self, title, text):
+class AboutWindow(qtw.QWidget):
+    def __init__(self):
         super().__init__()
-        self.setWindowTitle(title)
+        self.setWindowTitle("Daisyworld - About")
         self.setWindowIcon(qtg.QIcon('icon.ico'))
         self.setFont(qtg.QFont("Helvetica", 10))
         layout = qtw.QVBoxLayout()
         self.setLayout(layout)
         
         label = qtw.QLabel()
-        label.setText(text)
-        label.setOpenExternalLinks(True)
-        layout.addWidget(label)
-
-class AboutWindow(NotificationWindow):
-    def __init__(self):
-        super().__init__(
-            "Daisyworld - About",
+        label.setText(
             "Welcome to Daisyworld GUI!<br/><br/>" + \
             "This is an interactive plotting programme that helps you visualise<br/>" + \
             "the dynamics of the Daisyworld climate model. Here, you can explore<br/>" + \
@@ -79,11 +71,20 @@ class AboutWindow(NotificationWindow):
             "More about us:<br/>" + \
             "<a href='http://sps.nus.edu.sg/'>Special Programme in Science, National University of Singapore</a>"
         )
+        label.setOpenExternalLinks(True)
+        layout.addWidget(label)
 
 class LicenseWindow(qtw.QWidget):
     def __init__(self):
-        super().__init__(
-            "Daisyworld - License",
+        super().__init__()
+        self.setWindowTitle("Daisyworld - License")
+        self.setWindowIcon(qtg.QIcon('icon.ico'))
+        self.setFont(qtg.QFont("Helvetica", 10))
+        layout = qtw.QVBoxLayout()
+        self.setLayout(layout)
+        
+        label = qtw.QLabel()
+        label.setText(
             "This program is free software: you can redistribute it and/or modify<br/>" + \
             "it under the terms of the GNU General Public License as published by<br/>" + \
             "the Free Software Foundation, either version 3 of the License, or<br/>" + \
@@ -95,6 +96,8 @@ class LicenseWindow(qtw.QWidget):
             "You should have received a copy of the GNU General Public License<br/>" + \
             "along with this program.  If not, see <a href='https://www.gnu.org/licenses/'>here</a>."
         )
+        label.setOpenExternalLinks(True)
+        layout.addWidget(label)
 
 class WorldTab(qtw.QWidget):
     def __init__(self, dimension, bifurcation=False):
@@ -103,22 +106,27 @@ class WorldTab(qtw.QWidget):
         self.bifurcation = bifurcation
         layout = qtw.QVBoxLayout()
         self.setLayout(layout)
-        self._addDWCV()
+
+        # Initialize Daisyworld and Canvas
+        self.isRunning = False
+        self._initDWCV()
 
         # Parameter Input Boxes
         layoutInputBoxes = qtw.QFormLayout()
         self.inputboxes = []
-        for v in self.DW.parameters.get():
-            inputbox = self._newInputBox(str(v.value))
+        for p in self.DW.parameters:
+            inputbox = self._newInputBox(str(p.value))
             self.inputboxes.append(inputbox)
-            if v.unitRange:
-                layoutInputBoxes.addRow("{}* ({})".format(v.name, v.short), inputbox)
+            if p.unitRange:
+                layoutInputBoxes.addRow("{}* ({})".format(p.name, p.short), inputbox)
             else:
-                layoutInputBoxes.addRow("{} ({})".format(v.name, v.short), inputbox)
-
+                layoutInputBoxes.addRow("{} ({})".format(p.name, p.short), inputbox)
         # Buttons
         layoutButtons = qtw.QHBoxLayout()
-        self.buttons = [self._newButton("Restore defaults"), self._newButton("Run!")]
+        self.buttons = [
+            self._newButton("Restore default values"),
+            self._newButton("Run!")
+        ]
         self.buttons[0].clicked.connect(self._restore)
         self.buttons[1].clicked.connect(self._run)
         layoutButtons.addWidget(qtw.QLabel("*from 0 to 1"))
@@ -135,19 +143,17 @@ class WorldTab(qtw.QWidget):
         layout.addLayout(layoutButtons)
         layout.addLayout(layoutPlots)
 
-    def _addDWCV(self):
+    def _initDWCV(self):
         if self.dimension == 1:
             self.DW = DaisyWorld1()
-            if self.bifurcation:
-                self.canvas = None # PlotCanvas1bif(self.DW)
-            else:
-                self.canvas = PlotCanvas(self.DW)
+            self.canvas = PlotCanvas1(self.DW)
         elif self.dimension == 2:
             self.DW = DaisyWorld2()
-            if self.bifurcation:
-                self.canvas = None # PlotCanvas2bif(self.DW)
-            else:
-                self.canvas = None #PlotCanvas2(self.DW)
+            self.canvas = PlotCanvas2(self.DW)
+    
+    def _restoreDWCV(self):
+        self.DW.restoreDefaults()
+        self.canvas.updateDaisyWorld(self.DW)
 
     def _newInputBox(self, text, width=300):
         inputbox = qtw.QLineEdit()
@@ -169,48 +175,42 @@ class WorldTab(qtw.QWidget):
             qtw.QMessageBox.Yes | qtw.QMessageBox.No
         )
         if choice == qtw.QMessageBox.Yes:
-            if self.canvas.isRunning:
-                self.buttons[1].setText("Rerun!")
-                self.canvas.figStop()
-                self.canvas.isRunning = not self.canvas.isRunning
-            self.DW.parameters.reset()
+            self.DW.restoreDefaults()
             self._dw2box()
-            self.canvas.figClear()
 
     def _run(self):
-        if self.canvas.isRunning:
+        if self.isRunning:
             self.buttons[1].setText("Rerun!")
             self.canvas.figStop()
-            self.canvas.isRunning = not self.canvas.isRunning
+            self.isRunning = not self.isRunning
         else:
             try:
                 self._box2dw()
-                self.DW.setupBackground()
-                self.DW.setupEvolution()
                 self.canvas.updateDaisyWorld(self.DW)
                 self.buttons[1].setText("Stop")
                 self.canvas.figClear()
                 self.canvas.figInit()
                 self.canvas.figRun()
-                self.canvas.isRunning = not self.canvas.isRunning
+                self.isRunning = not self.isRunning
                 self.buttons[1].setStyleSheet("color: black; font-size: 27px")
             except Exception as e:
                 self.buttons[1].setStyleSheet("color: red; font-size: 27px")
 
     def _dw2box(self):
-        values = [str(p.value) for p in self.DW.parameters.get()]
         for i in range(len(self.inputboxes)):
-            self.inputboxes[i].setText(values[i])
+            self.inputboxes[i].setText(str(self.DW.parameters[i].value))
 
     def _box2dw(self):
-        values = [float(ib.text()) for ib in self.inputboxes]
-        self.DW.parameters.set(values)
+        for i in range(len(self.inputboxes)):
+            self.DW.parameters[i].setValue(float(self.inputboxes[i].text()))
+        if hasattr(self.DW, "Ab0") and hasattr(self.DW, "Aw0"):
+            p = Parameter("Initial Total Daisy Area", "_", self.DW.Ab0.value + self.DW.Aw0.value, unitRange=True)
 
-class PlotCanvas(FigureCanvas):
-    def __init__(self, daisyWorld, width=10, height=12, dpi=100):
-        self.isRunning = False
+class PlotCanvas1(FigureCanvas):
+    def __init__(self, daisyWorld, dt=0.025, width=10, height=12, dpi=100):
         fig = Figure(figsize=(width, height), dpi=dpi)
         self.DW = daisyWorld
+        self.dt = dt
         self.tip = fig.add_subplot(121)
         self.ssp = fig.add_subplot(122)
         self.figInit()
@@ -229,18 +229,26 @@ class PlotCanvas(FigureCanvas):
         self.timer.stop()
 
     def figInit(self):
-        x = self.DW.x
-        y = self.DW.y
-        self.ssp.plot(x, np.zeros(x.shape), ':', color='#8080ff')  # zero line
-        self.ssp.plot(x, y, '-', color='#8080ff')
-        self._drawFixedPoints()
+        arr_A = np.linspace(0, 1, num=101)
+        self.ssp.plot(arr_A, np.zeros(arr_A.shape), ':', color='#8080ff')  # zero line
+        self.ssp.plot(arr_A, self.DW.v(arr_A), '-', color='#8080ff')
         self._axesSet()
+        self.time = []
+        self.areas = []
+        self.velos = []
+        self.t = 0
+        self.A = self.DW.A0.value
 
     def figUpdate(self):
+        self.t += self.dt
+        self.A += self.DW.v(self.A) * self.dt
+        self.v = self.DW.v(self.A)
+        self.time.append(self.t)
+        self.velos.append(self.v)
+        self.areas.append(self.A)
         self.flush_events()
-        self.DW.evolve()
-        self.tip.plot(self.DW.evolution.t.value, self.DW.evolution.A.value, color='#ff8080', marker='o')
-        self.ssp.plot(self.DW.evolution.A.value, self.DW.evolution.v.value, color='#ff8080', marker='o')
+        self.tip.plot(self.time[-1], self.areas[-1], color='#ff8080', marker='o')
+        self.ssp.plot(self.areas[-1], self.velos[-1], color='#ff8080', marker='o')
         self._axesSet()
         self.draw()
 
@@ -249,20 +257,9 @@ class PlotCanvas(FigureCanvas):
         self.ssp.cla()
         self.figInit()
         self.draw()
-
-    def _drawFixedPoints(self):
-        labels = {'s': 'Stable', 'u': 'Unstable'}
-        for fp in self.DW.fixedPoints:
-            c = fp.coords + [0]
-            if fp.stable:
-                self.ssp.plot(c[0], c[1], 'b^', markersize=12, clip_on=False, label=labels['s'])
-                labels['s'] = '_nolegend_'
-            else:
-                self.ssp.plot(c[0], c[1], 'rv', markersize=12, clip_on=False, label=labels['u'])
-                labels['u'] = '_nolegend_'
-
+    
     def _axesSet(self):
-        self.tip.set_xlabel('{} (${}$)'.format(self.DW.evolution.t.name, self.DW.evolution.t.short))
+        self.tip.set_xlabel('Time ($t$)')
         self.tip.set_ylabel('Daisy Area ($A$)')
         self.tip.set_ylim(0, 1)
         self.ssp.set_xlabel('Daisy Area ($A$)')
@@ -281,6 +278,7 @@ class PlotCanvas2(FigureCanvas):
 
         self.timer = qtc.QTimer(self)
         self.timer.timeout.connect(self.figUpdate)
+
 
     def updateDaisyWorld(self, daisyWorld):
         self.DW = daisyWorld
@@ -343,32 +341,6 @@ class PlotCanvas2(FigureCanvas):
         self.ssp.set_xlim(-0.05, 1.05)
         self.ssp.set_ylim(-0.05, 1.05)
 
-class Parameters:
-    def __init__(self):
-        pass
-
-    def add(self, attribute, parameter):
-        setattr(self, attribute, parameter)
-        self.unitRangeCheck()
-
-    def get(self):
-        return [v for v in self.__dict__.values()]
-    
-    def set(self, values):
-        i = 0
-        for v in vars(self):
-            vars(self)[v].setValue(values[i])
-            i += 1
-        self.unitRangeCheck()
-
-    def reset(self):
-        for v in vars(self):
-            vars(self)[v].resetValue()
-    
-    def unitRangeCheck(self):  # induce value error downstream
-        if hasattr(self, "Ab0") and hasattr(self, "Aw0"):
-            _ = Parameter("Initial Total Daisy Area", "_", self.Ab0.value + self.Aw0.value, unitRange=True)
-
 class Parameter:
     def __init__(self, name="_", short="_", value=0, unitRange=False):
         self.name = name
@@ -377,73 +349,63 @@ class Parameter:
         self.setValue(value)
         self.default = self.value
     
-    def getValue(self):
-        return self.value
-    
     def setValue(self, value):
-        self.value = value
         if self.unitRange:
             if (value < 0) or (1 < value):
                 raise ValueError("Parameter value out of range!")
+            else:
+                self.value = value
+        else:
+            self.value = value
                 
     def resetValue(self):
         self.value = self.default
 
-class FixedPoint:
-    def __init__(self, coords, stable=None):
-        self.coords = coords
-        self.stable = stable
-
 class DaisyWorld1:
     def __init__(self):
-        self.parameters = Parameters()
-        self.parameters.add("A0", Parameter("Initial Daisy Area", "A<sup>t=0</sup>", 0.92, unitRange=True))
-        self.parameters.add("L", Parameter("Luminosity", "L", 1.))
-        self.parameters.add("ai", Parameter("Daisy Albedo", "a<sub>i</sub>", 0.75, unitRange=True))
-        self.parameters.add("ag", Parameter("Ground Albedo", "a<sub>g</sub>", 0.5, unitRange=True))
-        self.parameters.add("R", Parameter("Insulation Constant", "R", 0.2, unitRange=True))
-        self.parameters.add("S", Parameter("Solar Constant", "S", 917.))
-        self.parameters.add("sigma", Parameter("Stefan-Boltzmann Constant", "σ", 5.67e-8))
-        self.parameters.add("Ti", Parameter("Ideal Growth Temperature", "T<sub>i</sub>", 22.5))
-        self.parameters.add("gamma", Parameter("Death Rate", "γ", 0.3, unitRange=True))
+        self.parameters = []
+        self._addParameter("A0", Parameter("Initial Daisy Area", "A<sup>t=0</sup>", 0.92, unitRange=True))
+        self._addParameter("L", Parameter("Luminosity", "L", 1.))
+        self._addParameter("ai", Parameter("Daisy Albedo", "a<sub>i</sub>", 0.75, unitRange=True))
+        self._addParameter("ag", Parameter("Ground Albedo", "a<sub>g</sub>", 0.5, unitRange=True))
+        self._addParameter("R", Parameter("Insulation Constant", "R", 0.2, unitRange=True))
+        self._addParameter("S", Parameter("Solar Constant", "S", 917.))
+        self._addParameter("sigma", Parameter("Stefan-Boltzmann Constant", "σ", 5.67e-8))
+        self._addParameter("Ti", Parameter("Ideal Growth Temperature", "T<sub>i</sub>", 22.5))
+        self._addParameter("gamma", Parameter("Death Rate", "γ", 0.3, unitRange=True))
+        
+    def _addParameter(self, attribute, parameter):
+        setattr(self, attribute, parameter)
+        self.parameters.append(parameter)
 
-        self.setupBackground()
-        self.setupEvolution()
+    def restoreDefaults(self):
+        for p in self.parameters:
+            p.resetValue()
 
-    def setupBackground(self):  # state space background
-        self.x = np.linspace(0, 1, num=101)
-        self.y = self.v(self.x)
-        self.findFixedPoints()
-    
-    def setupEvolution(self):
-        self.evolution = Parameters()
-        self.evolution.add("t", Parameter("Time", "t", 0.))
-        self.evolution.add("A", Parameter("Daisy Area", "A", self.parameters.A0.value))
-        self.evolution.add("v", Parameter("Rate of Change of Daisy Area", "dA/dt", self.v(self.evolution.A.value)))
+    def v(self, A):  # dA/dt Function
+        ap = A * self.ai.value + (1 - A) * self.ag.value  # Planet Albedo
+        Te = (self.L.value * (self.S.value / self.sigma.value) * (1 - ap)) ** 0.25  # Planet Temp
+        T = (self.R.value * self.L.value * (self.S.value / self.sigma.value) * \
+            (ap - self.ai.value) + (Te ** 4)) ** 0.25  # Black Daisy Temp
+        b = 1 - (0.003265 * ((273.15 + self.Ti.value) - T) ** 2)  # Black Daisy Growth Rate
+        return A * ((1 - A) * b - self.gamma.value)
 
-    def evolve(self, dt=0.025):
-        self.evolution.t.value += dt
-        self.evolution.A.value += self.v(self.evolution.A.value) * dt
-        self.evolution.v.value = self.v(self.evolution.A.value)
-
-    def v(self, A):  # dA/dt
-        ap = A * self.parameters.ai.value + (1 - A) * self.parameters.ag.value  # planet albedo
-        Te = (self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * (1 - ap)) ** 0.25  # planet temp
-        T = (self.parameters.R.value * self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * \
-            (ap - self.parameters.ai.value) + (Te ** 4)) ** 0.25  # daisy temp
-        b = 1 - (0.003265 * ((273.15 + self.parameters.Ti.value) - T) ** 2)  # daisy growth rate
-        return A * ((1 - A) * b - self.parameters.gamma.value)
-
-    def findFixedPoints(self):
+    def getFixedPoints(self):
         self.fixedPoints = []
         dp = 1e-5
         testvec = np.linspace(0, 1, num=21)
         for A0 in testvec:
             p = round(minimize(lambda A : self.v(A) ** 2, A0, method='nelder-mead', options={'xtol': 1e-7}).x[0], 5)
             if (p not in self.fixedPoints) and (0 <= p <= 1):
-                fp = FixedPoint([p])
-                fp.stable = (self.v(p + dp) - self.v(p - dp) < 0)
+                fp = FixedPoint(p)
+                fp.stable = (self.v(p + dp) - self.v(p + dp) < 0)
                 self.fixedPoints.append(fp)
+
+
+class FixedPoint:
+    def __init__(self, coords, stable=None):
+        self.coords = coords
+        self.stable = stable
 
 class DaisyWorld2:
     def __init__(self):
