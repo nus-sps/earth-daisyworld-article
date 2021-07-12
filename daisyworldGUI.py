@@ -2,8 +2,8 @@
 # The project is licensed under the terms of GPL-3.0-or-later. <https://www.gnu.org/licenses/>
 # Author: Kun Hee Park
 
-from ast import parse
 import numpy as np
+from scipy.misc.common import derivative
 from scipy.optimize import minimize
 import sys
 import PyQt5.QtWidgets as qtw
@@ -43,7 +43,7 @@ class MainWindow(qtw.QMainWindow):
         # Tabs
         tabs = qtw.QTabWidget()
         tabs.addTab(WorldTab(1), "One-Daisy")
-        # tabs.addTab(WorldTab(2), "Two-Daisy")
+        tabs.addTab(WorldTab(2), "Two-Daisy")
         # tabs.addTab(WorldTab(1, bifurcation=True), "1D Bifurcation")
         # tabs.addTab(WorldTab(2, bifurcation=True), "2D Bifurcation")
         layout.addWidget(tabs)
@@ -171,8 +171,6 @@ class WorldTab(qtw.QWidget):
             self.buttons[0].setEnabled(True)
             self.buttons[1].setText("Rerun!")
             self.canvas.figStop()
-            self.canvas.isRunning = not self.canvas.isRunning
-            
         else:
             try:
                 self._box2dw()
@@ -182,10 +180,10 @@ class WorldTab(qtw.QWidget):
                 self.canvas.setDaisyWorld(self.DW)
                 self.canvas.figInit()
                 self.canvas.figRun()
-                self.canvas.isRunning = not self.canvas.isRunning
                 self.buttons[1].setStyleSheet("color: black; font-size: 27px")
             except Exception as e:
                 self.buttons[1].setStyleSheet("color: red; font-size: 27px")
+        self.canvas.isRunning = not self.canvas.isRunning
 
     def _dw2box(self):
         values = [str(p.value) for p in self.DW.parameters.get()]
@@ -310,7 +308,7 @@ class DaisyWorld1:
         self.evolution.add("A", Parameter("Daisy Area", "A", self.parameters.A0.value))
         self.evolution.add("v", Parameter("Rate of Change of Daisy Area", "dA/dt", self.v(self.evolution.A.value)))
 
-    def evolve(self, dt=0.025):
+    def evolve(self, dt=.025):
         self.evolution.t.value += dt
         self.evolution.A.value += self.v(self.evolution.A.value) * dt
         self.evolution.v.value = self.v(self.evolution.A.value)
@@ -324,7 +322,11 @@ class DaisyWorld1:
         dp = 1e-5
         testvec = np.linspace(0, 1, num=21)
         for A0 in testvec:
-            p = round(minimize(lambda A : self.v(A) ** 2, A0, method="nelder-mead", options={"xtol": 1e-7}).x[0], 5)
+            res = minimize(
+                lambda A : self.v(A) ** 2,
+                A0, method="nelder-mead", options={"xtol": 1e-7}
+            )
+            p = round(res.x[0], 5)
             if (p not in self.fixedPoints) and (0 <= p <= 1):
                 fp = FixedPoint([p])
                 fp.stable = (self.v(p + dp) - self.v(p - dp) < 0)
@@ -332,17 +334,16 @@ class DaisyWorld1:
         for fp in self.fixedPoints:
             axes[1].plot(fp.coords[0], 0, "b^" if fp.stable else "rv", markersize=12, clip_on=False)
 
-        axes[0].set_xlabel('Time ($t$)')
-        axes[0].set_ylabel('Daisy Area ($A$)')
+        axes[0].set_xlabel("Time ($t$)")
+        axes[0].set_ylabel("Daisy Area ($A$)")
         axes[0].set_ylim(0, 1)
-        axes[1].set_xlabel('Daisy Area ($A$)')
-        axes[1].set_ylabel('Rate of Change of Daisy Area ($dA/dt$)')
+        axes[1].set_xlabel("Daisy Area ($A$)")
+        axes[1].set_ylabel("Rate of Change of Daisy Area ($dA/dt$)")
         axes[1].set_xlim(0, 1)
 
     def drawForeground(self, axes):
         axes[0].plot(self.evolution.t.value, self.evolution.A.value, color="#ff8080", marker='o')
         axes[1].plot(self.evolution.A.value, self.evolution.v.value, color="#ff8080", marker='o')
-
 
 class DaisyWorld2:
     def __init__(self):
@@ -359,7 +360,36 @@ class DaisyWorld2:
         self.parameters.add("Ti", Parameter("Ideal Growth Temperature", "T<sub>i</sub>", 22.5))
         self.parameters.add("gamma", Parameter("Death Rate", "γ", 0.3, unitRange=True))
 
-    def setupBackground(self, axes):
+        self.setupEvolution()
+
+    def vb(self, Ab, Aw):  # dA/dt of Black Daisy
+        ap = Aw * self.parameters.aw.value + Ab * self.parameters.ab.value + (1 - Aw - Ab) * self.parameters.ag.value  # Planet Albedo
+        Te = (self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * (1 - ap)) ** 0.25  # Planet Temp
+        Tb = (self.parameters.R.value * self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * \
+             (ap - self.parameters.ab.value) + (Te ** 4)) ** 0.25  # Black Daisy Temp
+        bb = 1 - (0.003265 * ((273.15 + self.parameters.Ti.value) - Tb) ** 2)  # Black Daisy Growth Rate
+        return Ab * ((1 - Ab - Aw) * bb - self.parameters.gamma.value)
+
+    def vw(self, Ab, Aw):  # dA/dt of White Daisy
+        ap = Aw * self.parameters.aw.value + Ab * self.parameters.ab.value + (1 - Aw - Ab) * self.parameters.ag.value  # Planet Albedo
+        Te = (self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * (1 - ap)) ** 0.25  # Planet Temp
+        Tw = (self.parameters.R.value * self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * \
+             (ap - self.parameters.aw.value) + (Te ** 4)) ** 0.25  # White Daisy Temp
+        bw = 1 - (0.003265 * ((273.15 + self.parameters.Ti.value) - Tw) ** 2)  # White Daisy Growth Rate
+        return Aw * ((1 - Aw - Ab) * bw - self.parameters.gamma.value)
+    
+    def setupEvolution(self):
+        self.evolution = Parameters()
+        self.evolution.add("t", Parameter("Time", "t", 0.))
+        self.evolution.add("Ab", Parameter("Black Daisy Area", "Ab", self.parameters.Ab0.value))
+        self.evolution.add("Aw", Parameter("White Daisy Area", "Aw", self.parameters.Aw0.value))
+
+    def evolve(self, dt=.1):
+        self.evolution.t.value += dt
+        self.evolution.Ab.value += self.vb(self.evolution.Ab.value, self.evolution.Aw.value) * dt
+        self.evolution.Aw.value += self.vw(self.evolution.Ab.value, self.evolution.Aw.value) * dt
+
+    def drawBackground(self, axes):
         Aws, Abs = np.mgrid[0:1:100j, 0:1:100j]
         vbs = self.vb(Abs, Aws)
         vws = self.vw(Abs, Aws)
@@ -368,37 +398,53 @@ class DaisyWorld2:
             vws[i, len(vws) - i:] = np.nan
             vws = np.ma.array(vws, mask=mask)
         axes[1].streamplot(Abs, Aws, vbs, vws, color="#8080ff", density=1.5)
-        self.setupFixedPoints()
-
-    def setupEvolution(self):
-        self.evolution = Parameters()
-        self.evolution.add("t", Parameter("Time", "t", 0.))
-        self.evolution.add("Ab", Parameter("Black Daisy Area", "Ab", self.parameters.Ab0.value))
-        self.evolution.add("Aw", Parameter("White Daisy Area", "Aw", self.parameters.Aw0.value))
-        self.evolution.add("vb", Parameter("Rate of Change of Black Daisy Area"))
-        # axeslabel generation will be an issue!
-        # axeslabel gen should be done from foreground/background*** instaed!
-
-    # dA/dt of Black Daisy
-    def vb(self, Ab, Aw):
-        ap = Aw * self.parameters.aw.value + Ab * self.parameters.ab.value + (1 - Aw - Ab) * self.parameters.ag.value  # Planet Albedo
-        Te = (self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * (1 - ap)) ** 0.25  # Planet Temp
-        Tb = (self.parameters.R.value * self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * \
-             (ap - self.parameters.ab.value) + (Te ** 4)) ** 0.25  # Black Daisy Temp
-        bb = 1 - (0.003265 * ((273.15 + self.parameters.Ti.value) - Tb) ** 2)  # Black Daisy Growth Rate
-        return Ab * ((1 - Ab - Aw) * bb - self.parameters.gamma.value)
-
-    # dA/dt of White Daisy
-    def vw(self, Ab, Aw):
-        ap = Aw * self.parameters.aw.value + Ab * self.parameters.ab.value + (1 - Aw - Ab) * self.parameters.ag.value  # Planet Albedo
-        Te = (self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * (1 - ap)) ** 0.25  # Planet Temp
-        Tw = (self.parameters.R.value * self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * \
-             (ap - self.parameters.aw.value) + (Te ** 4)) ** 0.25  # White Daisy Temp
-        bw = 1 - (0.003265 * ((273.15 + self.parameters.Ti.value) - Tw) ** 2)  # White Daisy Growth Rate
-        return Aw * ((1 - Aw - Ab) * bw - self.parameters.gamma.value)
+        
+        self.fixedPoints = []
+        testvec = np.linspace(0, 1, num=21)
+        for Ab0 in testvec:
+            for Aw0 in testvec:
+                if (Ab0 + Aw0) <= 1:
+                    A0 = np.array([Ab0, Aw0])
+                    res = minimize(
+                        lambda A : self.vb(A[0], A[1]) ** 2 + self.vw(A[0], A[1]) ** 2,
+                        A0, method="nelder-mead", options={'xtol': 1e-7}
+                    )
+                    pb = round(res.x[0], 5)
+                    pw = round(res.x[1], 5)
+                    if ([pb, pw] not in self.fixedPoints) and ((pb + pw) <= 1) and (pb >= 0) and (pw >= 0):
+                        fp = FixedPoint([pb, pw])
+                        fp.stable = self._JacobianStability(fp)
+                        self.fixedPoints.append(fp)
+        for fp in self.fixedPoints:
+            axes[1].plot(fp.coords[0], fp.coords[1], "b^" if fp.stable else "rv", markersize=12, clip_on=False)
     
-    def setupFixedPoints(self):
-        self.fixedPoints = [FixedPoint([0, 0], stable=True)]
+        axes[0].set_xlabel("Time ($t$)")
+        axes[0].set_ylabel("Daisy Area ($A$)")
+        axes[0].set_ylim(0, 1)
+        axes[1].set_xlabel("Daisy Area ($A$)")
+        axes[1].set_ylabel("Rate of Change of Daisy Area ($dA/dt$)")
+        axes[1].set_xlim(0, 1)
+    
+    def drawForeground(self, axes):
+        axes[0].plot(self.evolution.t.value, self.evolution.Ab.value, color="#ffc000", marker='o')
+        axes[0].plot(self.evolution.t.value, self.evolution.Aw.value, color="#ff00c0", marker='o')
+        axes[1].plot(self.evolution.Ab.value, self.evolution.Aw.value, color="#ff8000", marker='o')
+
+    def _JacobianStability(self, fixedPoint):
+        def partial_derivative(v, coords, idx):
+            args = coords[:]
+            def wraps(x):
+                args[idx] = x
+                return v(*args)
+            return derivative(wraps, coords[idx], dx=1e-5)
+
+        j00 = partial_derivative(self.vb, fixedPoint.coords, 0)
+        j01 = partial_derivative(self.vb, fixedPoint.coords, 1)
+        j10 = partial_derivative(self.vw, fixedPoint.coords, 0)
+        j11 = partial_derivative(self.vb, fixedPoint.coords, 1)
+        jacobian = np.array([[j00, j01], [j10, j11]])
+        eigval, _ = np.linalg.eig(jacobian)
+        return (eigval[0] < 0 and eigval[1] < 0)
 
 if __name__ == "__main__":
     app = qtw.QApplication(sys.argv)
