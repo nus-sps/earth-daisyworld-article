@@ -80,7 +80,7 @@ class AboutWindow(NotificationWindow):
             "<a href='http://sps.nus.edu.sg/'>Special Programme in Science, National University of Singapore</a>"
         )
 
-class LicenseWindow(qtw.QWidget):
+class LicenseWindow(NotificationWindow):
     def __init__(self):
         super().__init__(
             "Daisyworld - License",
@@ -138,16 +138,9 @@ class WorldTab(qtw.QWidget):
     def _addDWCV(self):
         if self.dimension == 1:
             self.DW = DaisyWorld1()
-            if self.bifurcation:
-                self.canvas = None # PlotCanvas1bif(self.DW)
-            else:
-                self.canvas = PlotCanvas(self.DW)
         elif self.dimension == 2:
             self.DW = DaisyWorld2()
-            if self.bifurcation:
-                self.canvas = None # PlotCanvas2bif(self.DW)
-            else:
-                self.canvas = None #PlotCanvas2(self.DW)
+        self.canvas = PlotCanvas(self.DW)
 
     def _newInputBox(self, text, width=300):
         inputbox = qtw.QLineEdit()
@@ -169,27 +162,24 @@ class WorldTab(qtw.QWidget):
             qtw.QMessageBox.Yes | qtw.QMessageBox.No
         )
         if choice == qtw.QMessageBox.Yes:
-            if self.canvas.isRunning:
-                self.buttons[1].setText("Rerun!")
-                self.canvas.figStop()
-                self.canvas.isRunning = not self.canvas.isRunning
             self.DW.parameters.reset()
             self._dw2box()
-            self.canvas.figClear()
+            self.canvas.figInit()
 
     def _run(self):
         if self.canvas.isRunning:
+            self.buttons[0].setEnabled(True)
             self.buttons[1].setText("Rerun!")
             self.canvas.figStop()
             self.canvas.isRunning = not self.canvas.isRunning
+            
         else:
             try:
                 self._box2dw()
-                self.DW.setupBackground()
-                self.DW.setupEvolution()
-                self.canvas.updateDaisyWorld(self.DW)
+                self.buttons[0].setEnabled(False)
                 self.buttons[1].setText("Stop")
-                self.canvas.figClear()
+                self.DW.setupEvolution()
+                self.canvas.setDaisyWorld(self.DW)
                 self.canvas.figInit()
                 self.canvas.figRun()
                 self.canvas.isRunning = not self.canvas.isRunning
@@ -213,13 +203,13 @@ class PlotCanvas(FigureCanvas):
         self.DW = daisyWorld
         self.tip = fig.add_subplot(121)
         self.ssp = fig.add_subplot(122)
-        self.figInit()
         FigureCanvas.__init__(self, fig)
+        self.figInit()
 
         self.timer = qtc.QTimer(self)
-        self.timer.timeout.connect(self.figUpdate)
+        self.timer.timeout.connect(self._update)
     
-    def updateDaisyWorld(self, daisyWorld):
+    def setDaisyWorld(self, daisyWorld):
         self.DW = daisyWorld
 
     def figRun(self, milliseconds=0):
@@ -229,120 +219,17 @@ class PlotCanvas(FigureCanvas):
         self.timer.stop()
 
     def figInit(self):
-        x = self.DW.x
-        y = self.DW.y
-        self.ssp.plot(x, np.zeros(x.shape), ':', color='#8080ff')  # zero line
-        self.ssp.plot(x, y, '-', color='#8080ff')
-        self._drawFixedPoints()
-        self._axesSet()
+        self.tip.cla()
+        self.ssp.cla()
+        self.DW.drawBackground([self.tip, self.ssp])
+        self.draw()
 
-    def figUpdate(self):
+    def _update(self):
         self.flush_events()
         self.DW.evolve()
-        self.tip.plot(self.DW.evolution.t.value, self.DW.evolution.A.value, color='#ff8080', marker='o')
-        self.ssp.plot(self.DW.evolution.A.value, self.DW.evolution.v.value, color='#ff8080', marker='o')
-        self._axesSet()
-        self.draw()
-
-    def figClear(self):
-        self.tip.cla()
-        self.ssp.cla()
-        self.figInit()
-        self.draw()
-
-    def _drawFixedPoints(self):
-        labels = {'s': 'Stable', 'u': 'Unstable'}
-        for fp in self.DW.fixedPoints:
-            c = fp.coords + [0]
-            if fp.stable:
-                self.ssp.plot(c[0], c[1], 'b^', markersize=12, clip_on=False, label=labels['s'])
-                labels['s'] = '_nolegend_'
-            else:
-                self.ssp.plot(c[0], c[1], 'rv', markersize=12, clip_on=False, label=labels['u'])
-                labels['u'] = '_nolegend_'
-
-    def _axesSet(self):
-        self.tip.set_xlabel('{} (${}$)'.format(self.DW.evolution.t.name, self.DW.evolution.t.short))
-        self.tip.set_ylabel('Daisy Area ($A$)')
-        self.tip.set_ylim(0, 1)
-        self.ssp.set_xlabel('Daisy Area ($A$)')
-        self.ssp.set_ylabel('$dA/dt$')
-        self.ssp.set_xlim(0, 1)
-
-class PlotCanvas2(FigureCanvas):
-    def __init__(self, daisyWorld, dt=0.1, width=10, height=12, dpi=100):
-        fig = Figure(figsize=(width, height), dpi=dpi)
-        self.DW = daisyWorld
-        self.dt = dt
-        self.tip = fig.add_subplot(121)
-        self.ssp = fig.add_subplot(122)
-        self.figInit()
-        FigureCanvas.__init__(self, fig)
-
-        self.timer = qtc.QTimer(self)
-        self.timer.timeout.connect(self.figUpdate)
-
-    def updateDaisyWorld(self, daisyWorld):
-        self.DW = daisyWorld
-
-    def figRun(self, milliseconds=0):
-        self.timer.start(milliseconds)
-    
-    def figStop(self):
-        self.timer.stop()
-
-    def figInit(self):
-        Aws, Abs = np.mgrid[0:1:100j, 0:1:100j]
-        vbs = self.DW.vb(Abs, Aws)
-        vws = self.DW.vw(Abs, Aws)
-        mask = np.zeros(vws.shape, dtype=bool)
-        for i in range(len(vws)):
-            vws[i, len(vws) - i:] = np.nan
-            vws = np.ma.array(vws, mask=mask)
-        self.ssp.streamplot(Abs, Aws, vbs, vws, color='#8080ff', density=1.5)
-        self._axesSet()
-        self.time = []
-        self.areasB = []
-        self.areasW = []
-        self.velosB = []
-        self.velosW = []
-        self.t = 0
-        self.Ab = self.DW.Ab0.value
-        self.Aw = self.DW.Aw0.value
-
-    def figUpdate(self):
-        self.t += self.dt
-        self.Ab += self.DW.vb(self.Ab, self.Aw) * self.dt
-        self.Aw += self.DW.vw(self.Ab, self.Aw) * self.dt
-        self.vb = self.DW.vb(self.Ab, self.Aw)
-        self.vw = self.DW.vw(self.Ab, self.Aw)
-        self.time.append(self.t)
-        self.areasB.append(self.Ab)
-        self.areasW.append(self.Aw)
-        self.velosB.append(self.vb)
-        self.velosW.append(self.vw)
-        self.flush_events()
-        self.tip.plot(self.time[-1], self.areasB[-1], color='#ffC000', marker='o')
-        self.tip.plot(self.time[-1], self.areasW[-1], color='#ff00C0', marker='o')
-        self.ssp.plot(self.areasB[-1], self.areasW[-1], color='#ff8080', marker='o')
-        self._axesSet()
-        self.draw()
-
-    def figClear(self):
-        self.tip.cla()
-        self.ssp.cla()
-        self.figInit()
+        self.DW.drawForeground([self.tip, self.ssp])
         self.draw()
     
-    def _axesSet(self):
-        self.tip.set_xlabel('Time ($t$)')
-        self.tip.set_ylabel('Daisy Area ($A$)')
-        self.tip.set_ylim(0, 1)
-        self.ssp.set_xlabel('Daisy Area ($A$)')
-        self.ssp.set_ylabel('$dA/dt$')
-        self.ssp.set_xlim(-0.05, 1.05)
-        self.ssp.set_ylim(-0.05, 1.05)
-
 class Parameters:
     def __init__(self):
         pass
@@ -407,14 +294,16 @@ class DaisyWorld1:
         self.parameters.add("Ti", Parameter("Ideal Growth Temperature", "T<sub>i</sub>", 22.5))
         self.parameters.add("gamma", Parameter("Death Rate", "γ", 0.3, unitRange=True))
 
-        self.setupBackground()
         self.setupEvolution()
 
-    def setupBackground(self):  # state space background
-        self.x = np.linspace(0, 1, num=101)
-        self.y = self.v(self.x)
-        self.findFixedPoints()
-    
+    def v(self, A):  # dA/dt
+        ap = A * self.parameters.ai.value + (1 - A) * self.parameters.ag.value  # planet albedo
+        Te = (self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * (1 - ap)) ** 0.25  # planet temp
+        T = (self.parameters.R.value * self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * \
+            (ap - self.parameters.ai.value) + (Te ** 4)) ** 0.25  # daisy temp
+        b = 1 - (0.003265 * ((273.15 + self.parameters.Ti.value) - T) ** 2)  # daisy growth rate
+        return A * ((1 - A) * b - self.parameters.gamma.value)
+
     def setupEvolution(self):
         self.evolution = Parameters()
         self.evolution.add("t", Parameter("Time", "t", 0.))
@@ -426,65 +315,90 @@ class DaisyWorld1:
         self.evolution.A.value += self.v(self.evolution.A.value) * dt
         self.evolution.v.value = self.v(self.evolution.A.value)
 
-    def v(self, A):  # dA/dt
-        ap = A * self.parameters.ai.value + (1 - A) * self.parameters.ag.value  # planet albedo
-        Te = (self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * (1 - ap)) ** 0.25  # planet temp
-        T = (self.parameters.R.value * self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * \
-            (ap - self.parameters.ai.value) + (Te ** 4)) ** 0.25  # daisy temp
-        b = 1 - (0.003265 * ((273.15 + self.parameters.Ti.value) - T) ** 2)  # daisy growth rate
-        return A * ((1 - A) * b - self.parameters.gamma.value)
+    def drawBackground(self, axes):
+        As = np.linspace(0, 1, num=101)
+        axes[1].plot(As, np.zeros(As.shape), ':', color="#8080ff")
+        axes[1].plot(As, self.v(As), color="#8080ff")
 
-    def findFixedPoints(self):
         self.fixedPoints = []
         dp = 1e-5
         testvec = np.linspace(0, 1, num=21)
         for A0 in testvec:
-            p = round(minimize(lambda A : self.v(A) ** 2, A0, method='nelder-mead', options={'xtol': 1e-7}).x[0], 5)
+            p = round(minimize(lambda A : self.v(A) ** 2, A0, method="nelder-mead", options={"xtol": 1e-7}).x[0], 5)
             if (p not in self.fixedPoints) and (0 <= p <= 1):
                 fp = FixedPoint([p])
                 fp.stable = (self.v(p + dp) - self.v(p - dp) < 0)
                 self.fixedPoints.append(fp)
+        for fp in self.fixedPoints:
+            axes[1].plot(fp.coords[0], 0, "b^" if fp.stable else "rv", markersize=12, clip_on=False)
+
+        axes[0].set_xlabel('Time ($t$)')
+        axes[0].set_ylabel('Daisy Area ($A$)')
+        axes[0].set_ylim(0, 1)
+        axes[1].set_xlabel('Daisy Area ($A$)')
+        axes[1].set_ylabel('Rate of Change of Daisy Area ($dA/dt$)')
+        axes[1].set_xlim(0, 1)
+
+    def drawForeground(self, axes):
+        axes[0].plot(self.evolution.t.value, self.evolution.A.value, color="#ff8080", marker='o')
+        axes[1].plot(self.evolution.A.value, self.evolution.v.value, color="#ff8080", marker='o')
+
 
 class DaisyWorld2:
     def __init__(self):
-        self.parameters = []
-        self._addParameter("Ab0", Parameter("Initial Black Daisy Area", "A<sub>b</sub><sup>t=0</sup>", 0.87, unitRange=True))
-        self._addParameter("Aw0", Parameter("Initial White Daisy Area", "A<sub>w</sub><sup>t=0</sup>", 0.11, unitRange=True))
-        self._addParameter("L", Parameter("Luminosity", "L", 1.))
-        self._addParameter("ab", Parameter("Black Daisy Albedo", "a<sub>b</sub>", 0.25, unitRange=True))
-        self._addParameter("aw", Parameter("White Daisy Albedo", "a<sub>w</sub>", 0.75, unitRange=True))
-        self._addParameter("ag", Parameter("Ground Albedo", "a<sub>g</sub>", 0.5, unitRange=True))
-        self._addParameter("R", Parameter("Insulation Constant", "R", 0.2, unitRange=True))
-        self._addParameter("S", Parameter("Solar Constant", "S", 917.))
-        self._addParameter("sigma", Parameter("Stefan-Boltzmann Constant", "σ", 5.67e-8))
-        self._addParameter("Ti", Parameter("Ideal Growth Temperature", "T<sub>i</sub>", 22.5))
-        self._addParameter("gamma", Parameter("Death Rate", "γ", 0.3, unitRange=True))
+        self.parameters = Parameters()
+        self.parameters.add("Ab0", Parameter("Initial Black Daisy Area", "A<sub>b</sub><sup>t=0</sup>", 0.87, unitRange=True))
+        self.parameters.add("Aw0", Parameter("Initial White Daisy Area", "A<sub>w</sub><sup>t=0</sup>", 0.11, unitRange=True))
+        self.parameters.add("L", Parameter("Luminosity", "L", 1.))
+        self.parameters.add("ab", Parameter("Black Daisy Albedo", "a<sub>b</sub>", 0.25, unitRange=True))
+        self.parameters.add("aw", Parameter("White Daisy Albedo", "a<sub>w</sub>", 0.75, unitRange=True))
+        self.parameters.add("ag", Parameter("Ground Albedo", "a<sub>g</sub>", 0.5, unitRange=True))
+        self.parameters.add("R", Parameter("Insulation Constant", "R", 0.2, unitRange=True))
+        self.parameters.add("S", Parameter("Solar Constant", "S", 917.))
+        self.parameters.add("sigma", Parameter("Stefan-Boltzmann Constant", "σ", 5.67e-8))
+        self.parameters.add("Ti", Parameter("Ideal Growth Temperature", "T<sub>i</sub>", 22.5))
+        self.parameters.add("gamma", Parameter("Death Rate", "γ", 0.3, unitRange=True))
 
-    def _addParameter(self, attribute, parameter):
-        setattr(self, attribute, parameter)
-        self.parameters.append(parameter)
+    def setupBackground(self, axes):
+        Aws, Abs = np.mgrid[0:1:100j, 0:1:100j]
+        vbs = self.vb(Abs, Aws)
+        vws = self.vw(Abs, Aws)
+        mask = np.zeros(vws.shape, dtype=bool)
+        for i in range(len(vws)):
+            vws[i, len(vws) - i:] = np.nan
+            vws = np.ma.array(vws, mask=mask)
+        axes[1].streamplot(Abs, Aws, vbs, vws, color="#8080ff", density=1.5)
+        self.setupFixedPoints()
 
-    def restoreDefaults(self):
-        for p in self.parameters:
-            p.resetValue()
+    def setupEvolution(self):
+        self.evolution = Parameters()
+        self.evolution.add("t", Parameter("Time", "t", 0.))
+        self.evolution.add("Ab", Parameter("Black Daisy Area", "Ab", self.parameters.Ab0.value))
+        self.evolution.add("Aw", Parameter("White Daisy Area", "Aw", self.parameters.Aw0.value))
+        self.evolution.add("vb", Parameter("Rate of Change of Black Daisy Area"))
+        # axeslabel generation will be an issue!
+        # axeslabel gen should be done from foreground/background*** instaed!
 
     # dA/dt of Black Daisy
     def vb(self, Ab, Aw):
-        ap = Aw * self.aw.value + Ab * self.ab.value + (1 - Aw - Ab) * self.ag.value  # Planet Albedo
-        Te = (self.L.value * (self.S.value / self.sigma.value) * (1 - ap)) ** 0.25  # Planet Temp
-        Tb = (self.R.value * self.L.value * (self.S.value / self.sigma.value) * \
-             (ap - self.ab.value) + (Te ** 4)) ** 0.25  # Black Daisy Temp
-        bb = 1 - (0.003265 * ((273.15 + self.Ti.value) - Tb) ** 2)  # Black Daisy Growth Rate
-        return Ab * ((1 - Ab - Aw) * bb - self.gamma.value)
+        ap = Aw * self.parameters.aw.value + Ab * self.parameters.ab.value + (1 - Aw - Ab) * self.parameters.ag.value  # Planet Albedo
+        Te = (self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * (1 - ap)) ** 0.25  # Planet Temp
+        Tb = (self.parameters.R.value * self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * \
+             (ap - self.parameters.ab.value) + (Te ** 4)) ** 0.25  # Black Daisy Temp
+        bb = 1 - (0.003265 * ((273.15 + self.parameters.Ti.value) - Tb) ** 2)  # Black Daisy Growth Rate
+        return Ab * ((1 - Ab - Aw) * bb - self.parameters.gamma.value)
 
     # dA/dt of White Daisy
     def vw(self, Ab, Aw):
-        ap = Aw * self.aw.value + Ab * self.ab.value + (1 - Aw - Ab) * self.ag.value  # Planet Albedo
-        Te = (self.L.value * (self.S.value / self.sigma.value) * (1 - ap)) ** 0.25  # Planet Temp
-        Tw = (self.R.value * self.L.value * (self.S.value / self.sigma.value) * \
-             (ap - self.aw.value) + (Te ** 4)) ** 0.25  # White Daisy Temp
-        bw = 1 - (0.003265 * ((273.15 + self.Ti.value) - Tw) ** 2)  # White Daisy Growth Rate
-        return Aw * ((1 - Aw - Ab) * bw - self.gamma.value)
+        ap = Aw * self.parameters.aw.value + Ab * self.parameters.ab.value + (1 - Aw - Ab) * self.parameters.ag.value  # Planet Albedo
+        Te = (self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * (1 - ap)) ** 0.25  # Planet Temp
+        Tw = (self.parameters.R.value * self.parameters.L.value * (self.parameters.S.value / self.parameters.sigma.value) * \
+             (ap - self.parameters.aw.value) + (Te ** 4)) ** 0.25  # White Daisy Temp
+        bw = 1 - (0.003265 * ((273.15 + self.parameters.Ti.value) - Tw) ** 2)  # White Daisy Growth Rate
+        return Aw * ((1 - Aw - Ab) * bw - self.parameters.gamma.value)
+    
+    def setupFixedPoints(self):
+        self.fixedPoints = [FixedPoint([0, 0], stable=True)]
 
 if __name__ == "__main__":
     app = qtw.QApplication(sys.argv)
