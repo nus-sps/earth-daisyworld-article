@@ -111,10 +111,8 @@ class WorldTab(qtw.QWidget):
         for v in self.DW.parameters.get():
             inputbox = self._newInputBox(str(v.value))
             self.inputboxes.append(inputbox)
-            if v.unitRange:
-                layoutInputBoxes.addRow("{}* ({})".format(v.name, v.short), inputbox)
-            else:
-                layoutInputBoxes.addRow("{} ({})".format(v.name, v.short), inputbox)
+            asterisk = '*' if v.unitRange else ""
+            layoutInputBoxes.addRow("{}{} ({})".format(v.name, asterisk, v.short), inputbox)
 
         # Buttons
         layoutButtons = qtw.QHBoxLayout()
@@ -308,7 +306,7 @@ class DaisyWorld1:
         self.evolution.add("A", Parameter("Daisy Area", "A", self.parameters.A0.value))
         self.evolution.add("v", Parameter("Rate of Change of Daisy Area", "dA/dt", self.v(self.evolution.A.value)))
 
-    def evolve(self, dt=.025):
+    def evolve(self, dt=.05):
         self.evolution.t.value += dt
         self.evolution.A.value += self.v(self.evolution.A.value) * dt
         self.evolution.v.value = self.v(self.evolution.A.value)
@@ -327,7 +325,7 @@ class DaisyWorld1:
                 A0, method="nelder-mead", options={"xtol": 1e-7}
             )
             p = round(res.x[0], 5)
-            if (p not in self.fixedPoints) and (0 <= p <= 1):
+            if (p not in [fps.coords for fps in self.fixedPoints]) and (0 <= p <= 1):
                 fp = FixedPoint([p])
                 fp.stable = (self.v(p + dp) - self.v(p - dp) < 0)
                 self.fixedPoints.append(fp)
@@ -384,7 +382,7 @@ class DaisyWorld2:
         self.evolution.add("Ab", Parameter("Black Daisy Area", "Ab", self.parameters.Ab0.value))
         self.evolution.add("Aw", Parameter("White Daisy Area", "Aw", self.parameters.Aw0.value))
 
-    def evolve(self, dt=.1):
+    def evolve(self, dt=.05):
         self.evolution.t.value += dt
         self.evolution.Ab.value += self.vb(self.evolution.Ab.value, self.evolution.Aw.value) * dt
         self.evolution.Aw.value += self.vw(self.evolution.Ab.value, self.evolution.Aw.value) * dt
@@ -411,7 +409,7 @@ class DaisyWorld2:
                     )
                     pb = round(res.x[0], 5)
                     pw = round(res.x[1], 5)
-                    if ([pb, pw] not in self.fixedPoints) and ((pb + pw) <= 1) and (pb >= 0) and (pw >= 0):
+                    if ([pb, pw] not in [fps.coords for fps in self.fixedPoints]) and ((pb + pw) <= 1) and (pb >= 0) and (pw >= 0):
                         fp = FixedPoint([pb, pw])
                         fp.stable = self._JacobianStability(fp)
                         self.fixedPoints.append(fp)
@@ -441,7 +439,7 @@ class DaisyWorld2:
         j00 = partial_derivative(self.vb, fixedPoint.coords, 0)
         j01 = partial_derivative(self.vb, fixedPoint.coords, 1)
         j10 = partial_derivative(self.vw, fixedPoint.coords, 0)
-        j11 = partial_derivative(self.vb, fixedPoint.coords, 1)
+        j11 = partial_derivative(self.vw, fixedPoint.coords, 1)
         jacobian = np.array([[j00, j01], [j10, j11]])
         eigval, _ = np.linalg.eig(jacobian)
         return (eigval[0] < 0 and eigval[1] < 0)
