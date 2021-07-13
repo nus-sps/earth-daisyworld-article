@@ -33,8 +33,6 @@ def vw(Ab, Aw, L):
     bw = 1 - (0.003265 * ((273.15 + Ti) - Tw) ** 2)  # White Daisy Growth Rate
     return Aw * ((1 - Aw - Ab) * bw - gamma)
 
-### TIME ITERATION PICTURE ###
-
 # Forward-Euler Trajectory
 dt = 0.05
 time = np.arange(0, 10, dt)
@@ -48,11 +46,9 @@ for i in range(len(time)):
     Ab += vb(Ab, Aw, L) * dt
     Aw += vw(Ab, Aw, L) * dt
 
-# Plot
+# Time Iteration Plot
 utils2d.plot_time_iteration(time, black_areas, white_areas)
 plt.show()
-
-### SPACE STATE PICTURE ###
 
 # Find dAb/dt and dAw/dt at every value of Ab and Aw
 Aws, Abs = np.mgrid[0:1:100j, 0:1:100j]
@@ -63,11 +59,9 @@ vws = vw(Abs, Aws, L)
 equilibria = utils2d.equilibrium(vb, vw, L)
 print(equilibria)
 
-# Plot
+# State Space Plot
 utils2d.plot_state_space(Abs, Aws, vbs, vws, eqs=equilibria)
 plt.show()
-
-### COMPLETE PICTURE ###
 
 # Animated Comparison (try for different initial area values)
 t_data = (time, black_areas, white_areas)
@@ -80,6 +74,5 @@ lumins = np.arange(0.5, 1.8, 0.02)
 eqs = []
 for l in lumins:
     eqs.append(utils2d.equilibrium(vb, vw, l))
-
 utils2d.plot_bifurcation(lumins, eqs, elev=12.5, azim=-132.5)
 plt.show()

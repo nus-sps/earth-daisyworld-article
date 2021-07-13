@@ -24,8 +24,6 @@ def v(A, L):
     b = 1 - (0.003265 * ((273.15 + Ti) - T) ** 2)  # Black Daisy Growth Rate
     return A * ((1 - A) * b - gamma)
 
-### TIME ITERATION PICTURE ###
-
 # Forward-Euler Trajectory
 dt = 0.025
 time = np.arange(0, 10, dt)
@@ -36,11 +34,9 @@ for i in range(len(time)):
     areas[i] = A
     A += v(A, L) * dt
 
-# Plot
+# Time Iteration Plot
 utils1d.plot_time_iteration(time, areas)
 plt.show()
-
-### STATE SPACE PICTURE ###
 
 # Find dA/dt at every value of A
 arr_A = np.linspace(0, 1, num=101)
@@ -50,11 +46,9 @@ arr_v = v(arr_A, L)
 equilibria = utils1d.equilibrium(v, L)
 print(equilibria)
 
-# Plot
+# State Space Plot
 utils1d.plot_state_space(arr_A, arr_v, eqs=equilibria)
 plt.show()
-
-### COMPLETE PICTURE ###
 
 # Animated Comparison (try for different initial area values)
 t_data = (time, areas)
@@ -68,6 +62,5 @@ lumins = np.arange(0.5, 1.8, 0.02)
 eqs = []
 for l in lumins:
     eqs.append(utils1d.equilibrium(v, l))
-
 utils1d.plot_bifurcation(lumins, eqs)
 plt.show()
