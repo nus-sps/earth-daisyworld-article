@@ -2,6 +2,7 @@
 # The project is licensed under the terms of GPL-3.0-or-later. <https://www.gnu.org/licenses/>
 # Author: Kun Hee Park
 
+from abc import ABC, abstractmethod
 import numpy as np
 from scipy.misc.common import derivative
 from scipy.optimize import minimize
@@ -42,10 +43,10 @@ class MainWindow(qtw.QMainWindow):
 
         # Tabs
         tabs = qtw.QTabWidget()
-        tabs.addTab(WorldTab(1), "One-Daisy")
-        tabs.addTab(WorldTab(2), "Two-Daisy")
-        # tabs.addTab(WorldTab(1, bifurcation=True), "1D Bifurcation")
-        # tabs.addTab(WorldTab(2, bifurcation=True), "2D Bifurcation")
+        tabs.addTab(WorldTab(DaisyWorld1), "One-Daisy")
+        tabs.addTab(WorldTab(DaisyWorld2), "Two-Daisy")
+        tabs.addTab(WorldTab(Bifurcation1), "1D Bifurcation")
+        # tabs.addTab(WorldTab(Bifurcation2), "2D Bifurcation")
         layout.addWidget(tabs)
 
     def _spawnWindow(self, obj):
@@ -97,18 +98,17 @@ class LicenseWindow(NotificationWindow):
         )
 
 class WorldTab(qtw.QWidget):
-    def __init__(self, dimension, bifurcation=False):
+    def __init__(self, module):
         super().__init__()
-        self.dimension = dimension
-        self.bifurcation = bifurcation
         layout = qtw.QVBoxLayout()
         self.setLayout(layout)
-        self._addDWCV()
+        self.module = module()
+        self.canvas = PlotCanvas(self.module)
 
         # Parameter Input Boxes
         layoutInputBoxes = qtw.QFormLayout()
         self.inputboxes = []
-        for v in self.DW.parameters.get():
+        for v in self.module.parameters.get():
             inputbox = self._newInputBox(str(v.value))
             self.inputboxes.append(inputbox)
             asterisk = '*' if v.unitRange else ""
@@ -133,13 +133,6 @@ class WorldTab(qtw.QWidget):
         layout.addLayout(layoutButtons)
         layout.addLayout(layoutPlots)
 
-    def _addDWCV(self):
-        if self.dimension == 1:
-            self.DW = DaisyWorld1()
-        elif self.dimension == 2:
-            self.DW = DaisyWorld2()
-        self.canvas = PlotCanvas(self.DW)
-
     def _newInputBox(self, text, width=300):
         inputbox = qtw.QLineEdit()
         inputbox.setText(text)
@@ -160,8 +153,8 @@ class WorldTab(qtw.QWidget):
             qtw.QMessageBox.Yes | qtw.QMessageBox.No
         )
         if choice == qtw.QMessageBox.Yes:
-            self.DW.parameters.reset()
-            self._dw2box()
+            self.module.parameters.reset()
+            self._mod2box()
 
     def _run(self):
         if self.canvas.isRunning:
@@ -169,10 +162,10 @@ class WorldTab(qtw.QWidget):
             self.canvas.figStop()
         else:
             try:
-                self._box2dw()
+                self._box2mod()
                 self.buttons[1].setText("Stop")
-                self.DW.setupEvolution()
-                self.canvas.setDaisyWorld(self.DW)
+                self.module.setupEvolution()
+                self.canvas.setDaisyWorld(self.module)
                 self.canvas.figInit()
                 self.canvas.figRun()
                 self.buttons[1].setStyleSheet("color: black; font-size: 27px")
@@ -180,14 +173,14 @@ class WorldTab(qtw.QWidget):
                 self.buttons[1].setStyleSheet("color: red; font-size: 27px")
         self.canvas.isRunning = not self.canvas.isRunning
 
-    def _dw2box(self):
-        values = [str(p.value) for p in self.DW.parameters.get()]
+    def _mod2box(self):
+        values = [str(p.value) for p in self.module.parameters.get()]
         for i in range(len(self.inputboxes)):
             self.inputboxes[i].setText(values[i])
 
-    def _box2dw(self):
+    def _box2mod(self):
         values = [float(ib.text()) for ib in self.inputboxes]
-        self.DW.parameters.set(values)
+        self.module.parameters.set(values)
 
 class PlotCanvas(FigureCanvas):
     def __init__(self, daisyWorld, width=10, height=12, dpi=100):
@@ -272,7 +265,28 @@ class FixedPoint:
         self.coords = coords
         self.stable = stable
 
-class DaisyWorld1:
+class Module(ABC):
+    @abstractmethod
+    def setupEvolution(self):
+        pass
+
+    @abstractmethod
+    def evolve(self):
+        pass
+
+    @abstractmethod
+    def generateFigure(self, width, height, dpi):
+        pass
+
+    @abstractmethod
+    def drawBackground(self):
+        pass
+
+    @abstractmethod
+    def drawForeground(self):
+        pass
+
+class DaisyWorld1(Module):
     def __init__(self):
         self.parameters = Parameters()
         self.parameters.add("A0", Parameter("Initial Daisy Area", "A<sup>t=0</sup>", 0.92, unitRange=True))
@@ -311,7 +325,6 @@ class DaisyWorld1:
         fig = Figure(figsize=(width, height), dpi=dpi)
         self.axes.append(fig.add_subplot(121))
         self.axes.append(fig.add_subplot(122))
-        self.axes[1].set_aspect("equal")
         return fig
 
     def drawBackground(self):
@@ -319,16 +332,17 @@ class DaisyWorld1:
         self.axes[1].plot(As, np.zeros(As.shape), ':', color="#8080ff")
         self.axes[1].plot(As, self.v(As), color="#8080ff")
 
+        def _cost(A):
+            return self.v(A) ** 2
         self.fixedPoints = []
         dp = 1e-5
+        xtol = 1e-7
+        ctol = 1e-7
         testvec = np.linspace(0, 1, num=21)
         for A0 in testvec:
-            res = minimize(
-                lambda A : self.v(A) ** 2,
-                A0, method="nelder-mead", options={"xtol": 1e-7}
-            )
+            res = minimize(_cost, A0, method="nelder-mead", options={"xtol": xtol})
             p = round(res.x[0], 5)
-            if (p not in [fps.coords for fps in self.fixedPoints]) and (0 <= p <= 1):
+            if (p not in [fps.coords for fps in self.fixedPoints]) and (0 <= p <= 1) and (_cost(p) < ctol):
                 fp = FixedPoint([p])
                 fp.stable = (self.v(p + dp) - self.v(p - dp) < 0)
                 self.fixedPoints.append(fp)
@@ -346,7 +360,7 @@ class DaisyWorld1:
         self.axes[0].plot(self.evolution.t.value, self.evolution.A.value, color="#ff8080", marker='o')
         self.axes[1].plot(self.evolution.A.value, self.evolution.v.value, color="#ff8080", marker='o')
 
-class DaisyWorld2:
+class DaisyWorld2(Module):
     def __init__(self):
         self.parameters = Parameters()
         self.parameters.add("Ab0", Parameter("Initial Black Daisy Area", "A<sub>b</sub><sup>t=0</sup>", 0.87, unitRange=True))
@@ -408,19 +422,20 @@ class DaisyWorld2:
             vws = np.ma.array(vws, mask=mask)
         self.axes[1].streamplot(Abs, Aws, vbs, vws, color="#8080ff", density=1.5)
         
+        def _cost(A):
+            return self.vb(A[0], A[1]) ** 2 + self.vw(A[0], A[1]) ** 2
         self.fixedPoints = []
+        xtol = 1e-7
+        ctol = 1e-7
         testvec = np.linspace(0, 1, num=21)
         for Ab0 in testvec:
             for Aw0 in testvec:
                 if (Ab0 + Aw0) <= 1:
                     A0 = np.array([Ab0, Aw0])
-                    res = minimize(
-                        lambda A : self.vb(A[0], A[1]) ** 2 + self.vw(A[0], A[1]) ** 2,
-                        A0, method="nelder-mead", options={'xtol': 1e-7}
-                    )
+                    res = minimize(_cost, A0, method="nelder-mead", options={'xtol': xtol})
                     pb = round(res.x[0], 5)
                     pw = round(res.x[1], 5)
-                    if ([pb, pw] not in [fps.coords for fps in self.fixedPoints]) and ((pb + pw) <= 1) and (pb >= 0) and (pw >= 0):
+                    if ([pb, pw] not in [fps.coords for fps in self.fixedPoints]) and ((pb + pw) <= 1) and (pb >= 0) and (pw >= 0) and (_cost([pb, pw]) < ctol):
                         fp = FixedPoint([pb, pw])
                         fp.stable = self._JacobianStability(fp)
                         self.fixedPoints.append(fp)
@@ -432,6 +447,8 @@ class DaisyWorld2:
         self.axes[0].set_ylim(0, 1)
         self.axes[1].set_xlabel("Daisy Area ($A$)")
         self.axes[1].set_ylabel("Rate of Change of Daisy Area ($dA/dt$)")
+        self.axes[1].set_xlim(-0.05, 1.05)
+        self.axes[1].set_ylim(-0.05, 1.05)
     
     def drawForeground(self):
         self.axes[0].plot(self.evolution.t.value, self.evolution.Ab.value, color="#ffc000", marker='o')
@@ -453,6 +470,79 @@ class DaisyWorld2:
         jacobian = np.array([[j00, j01], [j10, j11]])
         eigval, _ = np.linalg.eig(jacobian)
         return (eigval[0] < 0 and eigval[1] < 0)
+
+class Bifurcation1(Module):
+    def __init__(self):
+        self.parameters = Parameters()
+        self.parameters.add("Lmin", Parameter("Luminosity Minimum", "L<sub>min</sub>", 0.5))
+        self.parameters.add("Lmax", Parameter("Luminosity Maximum", "L<sub>max</sub>", 1.8))
+        self.parameters.add("ai", Parameter("Daisy Albedo", "a<sub>i</sub>", 0.75, unitRange=True))
+        self.parameters.add("ag", Parameter("Ground Albedo", "a<sub>g</sub>", 0.5, unitRange=True))
+        self.parameters.add("R", Parameter("Insulation Constant", "R", 0.2, unitRange=True))
+        self.parameters.add("S", Parameter("Solar Constant", "S", 917.))
+        self.parameters.add("sigma", Parameter("Stefan-Boltzmann Constant", "σ", 5.67e-8))
+        self.parameters.add("Ti", Parameter("Ideal Growth Temperature", "T<sub>i</sub>", 22.5))
+        self.parameters.add("gamma", Parameter("Death Rate", "γ", 0.3, unitRange=True))
+
+        self.setupEvolution()
+
+    def v(self, A):  # dA/dt
+        ap = A * self.parameters.ai.value + (1 - A) * self.parameters.ag.value  # planet albedo
+        Te = (self.evolution.L.value * (self.parameters.S.value / self.parameters.sigma.value) * (1 - ap)) ** 0.25  # planet temp
+        T = (self.parameters.R.value * self.evolution.L.value * (self.parameters.S.value / self.parameters.sigma.value) * \
+            (ap - self.parameters.ai.value) + (Te ** 4)) ** 0.25  # daisy temp
+        b = 1 - (0.003265 * ((273.15 + self.parameters.Ti.value) - T) ** 2)  # daisy growth rate
+        return A * ((1 - A) * b - self.parameters.gamma.value)
+
+    def setupEvolution(self):
+        self.evolution = Parameters()
+        self.evolution.add("L", Parameter("Luminosity", "L", self.parameters.Lmin.value))
+
+    def evolve(self, dL=.025):
+        self.evolution.L.value += dL
+
+    def generateFigure(self, width, height, dpi):
+        self.axes = []
+        fig = Figure(figsize=(width, height), dpi=dpi)
+        self.axes.append(fig.add_subplot(121))
+        self.axes.append(fig.add_subplot(122))
+        return fig
+
+    def drawBackground(self):
+        As = np.linspace(0, 1, num=101)
+        self.axes[0].plot(As, np.zeros(As.shape), ':', color="#8080ff")
+        self.axes[0].plot(As, self.v(As), color="#8080ff")
+        self.axes[0].set_title("L = {:.03f}".format(self.evolution.L.value))
+
+        def _cost(A):
+            return self.v(A) ** 2
+        self.fixedPoints = []
+        dp = 1e-5
+        ctol = 1e-7
+        xtol = 1e-7
+        testvec = np.linspace(0, 1, num=21)
+        for A0 in testvec:
+            res = minimize(_cost, A0, method="nelder-mead", options={"xtol": xtol})
+            p = round(res.x[0], 5)
+            if (p not in [fps.coords for fps in self.fixedPoints]) and (0 <= p <= 1) and (_cost(p) < ctol):
+                # the _cost check is necessary for the nelder-mead method
+                fp = FixedPoint([p])
+                fp.stable = (self.v(p + dp) - self.v(p - dp) < 0)
+                self.fixedPoints.append(fp)
+        for fp in self.fixedPoints:
+            self.axes[0].plot(fp.coords[0], 0, "b^" if fp.stable else "rv", markersize=12, clip_on=False)
+
+        self.axes[0].set_xlabel("Daisy Area ($A$)")
+        self.axes[0].set_ylabel("Rate of Change of Daisy Area ($dA/dt$)")
+        self.axes[0].set_xlim(0, 1)
+        self.axes[1].set_xlabel("Daisy Area ($A$)")
+        self.axes[1].set_ylabel("Luminosity ($L$)")
+        self.axes[1].set_xlim(0, 1)
+
+    def drawForeground(self):
+        if self.evolution.L.value <= self.parameters.Lmax.value:
+            self.axes[0].cla()
+            self.drawBackground()
 
 if __name__ == "__main__":
     app = qtw.QApplication(sys.argv)
