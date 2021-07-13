@@ -162,17 +162,14 @@ class WorldTab(qtw.QWidget):
         if choice == qtw.QMessageBox.Yes:
             self.DW.parameters.reset()
             self._dw2box()
-            self.canvas.figInit()
 
     def _run(self):
         if self.canvas.isRunning:
-            self.buttons[0].setEnabled(True)
             self.buttons[1].setText("Rerun!")
             self.canvas.figStop()
         else:
             try:
                 self._box2dw()
-                self.buttons[0].setEnabled(False)
                 self.buttons[1].setText("Stop")
                 self.DW.setupEvolution()
                 self.canvas.setDaisyWorld(self.DW)
@@ -195,10 +192,8 @@ class WorldTab(qtw.QWidget):
 class PlotCanvas(FigureCanvas):
     def __init__(self, daisyWorld, width=10, height=12, dpi=100):
         self.isRunning = False
-        fig = Figure(figsize=(width, height), dpi=dpi)
         self.DW = daisyWorld
-        self.tip = fig.add_subplot(121)
-        self.ssp = fig.add_subplot(122)
+        fig = self.DW.generateFigure(width, height, dpi)
         FigureCanvas.__init__(self, fig)
         self.figInit()
 
@@ -215,15 +210,15 @@ class PlotCanvas(FigureCanvas):
         self.timer.stop()
 
     def figInit(self):
-        self.tip.cla()
-        self.ssp.cla()
-        self.DW.drawBackground([self.tip, self.ssp])
+        for ax in self.DW.axes:
+            ax.cla()
+        self.DW.drawBackground()
         self.draw()
 
     def _update(self):
         self.flush_events()
         self.DW.evolve()
-        self.DW.drawForeground([self.tip, self.ssp])
+        self.DW.drawForeground()
         self.draw()
     
 class Parameters:
@@ -306,15 +301,23 @@ class DaisyWorld1:
         self.evolution.add("A", Parameter("Daisy Area", "A", self.parameters.A0.value))
         self.evolution.add("v", Parameter("Rate of Change of Daisy Area", "dA/dt", self.v(self.evolution.A.value)))
 
-    def evolve(self, dt=.05):
+    def evolve(self, dt=.025):
         self.evolution.t.value += dt
         self.evolution.A.value += self.v(self.evolution.A.value) * dt
         self.evolution.v.value = self.v(self.evolution.A.value)
 
-    def drawBackground(self, axes):
+    def generateFigure(self, width, height, dpi):
+        self.axes = []
+        fig = Figure(figsize=(width, height), dpi=dpi)
+        self.axes.append(fig.add_subplot(121))
+        self.axes.append(fig.add_subplot(122))
+        self.axes[1].set_aspect("equal")
+        return fig
+
+    def drawBackground(self):
         As = np.linspace(0, 1, num=101)
-        axes[1].plot(As, np.zeros(As.shape), ':', color="#8080ff")
-        axes[1].plot(As, self.v(As), color="#8080ff")
+        self.axes[1].plot(As, np.zeros(As.shape), ':', color="#8080ff")
+        self.axes[1].plot(As, self.v(As), color="#8080ff")
 
         self.fixedPoints = []
         dp = 1e-5
@@ -330,18 +333,18 @@ class DaisyWorld1:
                 fp.stable = (self.v(p + dp) - self.v(p - dp) < 0)
                 self.fixedPoints.append(fp)
         for fp in self.fixedPoints:
-            axes[1].plot(fp.coords[0], 0, "b^" if fp.stable else "rv", markersize=12, clip_on=False)
+            self.axes[1].plot(fp.coords[0], 0, "b^" if fp.stable else "rv", markersize=12, clip_on=False)
 
-        axes[0].set_xlabel("Time ($t$)")
-        axes[0].set_ylabel("Daisy Area ($A$)")
-        axes[0].set_ylim(0, 1)
-        axes[1].set_xlabel("Daisy Area ($A$)")
-        axes[1].set_ylabel("Rate of Change of Daisy Area ($dA/dt$)")
-        axes[1].set_xlim(0, 1)
+        self.axes[0].set_xlabel("Time ($t$)")
+        self.axes[0].set_ylabel("Daisy Area ($A$)")
+        self.axes[0].set_ylim(0, 1)
+        self.axes[1].set_xlabel("Daisy Area ($A$)")
+        self.axes[1].set_ylabel("Rate of Change of Daisy Area ($dA/dt$)")
+        self.axes[1].set_xlim(0, 1)
 
-    def drawForeground(self, axes):
-        axes[0].plot(self.evolution.t.value, self.evolution.A.value, color="#ff8080", marker='o')
-        axes[1].plot(self.evolution.A.value, self.evolution.v.value, color="#ff8080", marker='o')
+    def drawForeground(self):
+        self.axes[0].plot(self.evolution.t.value, self.evolution.A.value, color="#ff8080", marker='o')
+        self.axes[1].plot(self.evolution.A.value, self.evolution.v.value, color="#ff8080", marker='o')
 
 class DaisyWorld2:
     def __init__(self):
@@ -387,7 +390,15 @@ class DaisyWorld2:
         self.evolution.Ab.value += self.vb(self.evolution.Ab.value, self.evolution.Aw.value) * dt
         self.evolution.Aw.value += self.vw(self.evolution.Ab.value, self.evolution.Aw.value) * dt
 
-    def drawBackground(self, axes):
+    def generateFigure(self, width, height, dpi):
+        self.axes = []
+        fig = Figure(figsize=(width, height), dpi=dpi)
+        self.axes.append(fig.add_subplot(121))
+        self.axes.append(fig.add_subplot(122))
+        self.axes[1].set_aspect("equal")
+        return fig
+
+    def drawBackground(self):
         Aws, Abs = np.mgrid[0:1:100j, 0:1:100j]
         vbs = self.vb(Abs, Aws)
         vws = self.vw(Abs, Aws)
@@ -395,7 +406,7 @@ class DaisyWorld2:
         for i in range(len(vws)):
             vws[i, len(vws) - i:] = np.nan
             vws = np.ma.array(vws, mask=mask)
-        axes[1].streamplot(Abs, Aws, vbs, vws, color="#8080ff", density=1.5)
+        self.axes[1].streamplot(Abs, Aws, vbs, vws, color="#8080ff", density=1.5)
         
         self.fixedPoints = []
         testvec = np.linspace(0, 1, num=21)
@@ -414,19 +425,18 @@ class DaisyWorld2:
                         fp.stable = self._JacobianStability(fp)
                         self.fixedPoints.append(fp)
         for fp in self.fixedPoints:
-            axes[1].plot(fp.coords[0], fp.coords[1], "b^" if fp.stable else "rv", markersize=12, clip_on=False)
+            self.axes[1].plot(fp.coords[0], fp.coords[1], "b^" if fp.stable else "rv", markersize=12, clip_on=False)
     
-        axes[0].set_xlabel("Time ($t$)")
-        axes[0].set_ylabel("Daisy Area ($A$)")
-        axes[0].set_ylim(0, 1)
-        axes[1].set_xlabel("Daisy Area ($A$)")
-        axes[1].set_ylabel("Rate of Change of Daisy Area ($dA/dt$)")
-        axes[1].set_xlim(0, 1)
+        self.axes[0].set_xlabel("Time ($t$)")
+        self.axes[0].set_ylabel("Daisy Area ($A$)")
+        self.axes[0].set_ylim(0, 1)
+        self.axes[1].set_xlabel("Daisy Area ($A$)")
+        self.axes[1].set_ylabel("Rate of Change of Daisy Area ($dA/dt$)")
     
-    def drawForeground(self, axes):
-        axes[0].plot(self.evolution.t.value, self.evolution.Ab.value, color="#ffc000", marker='o')
-        axes[0].plot(self.evolution.t.value, self.evolution.Aw.value, color="#ff00c0", marker='o')
-        axes[1].plot(self.evolution.Ab.value, self.evolution.Aw.value, color="#ff8000", marker='o')
+    def drawForeground(self):
+        self.axes[0].plot(self.evolution.t.value, self.evolution.Ab.value, color="#ffc000", marker='o')
+        self.axes[0].plot(self.evolution.t.value, self.evolution.Aw.value, color="#ff00c0", marker='o')
+        self.axes[1].plot(self.evolution.Ab.value, self.evolution.Aw.value, color="#ff8000", marker='o')
 
     def _JacobianStability(self, fixedPoint):
         def partial_derivative(v, coords, idx):
