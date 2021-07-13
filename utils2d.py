@@ -10,12 +10,31 @@ from scipy.optimize import minimize
 from scipy.misc import derivative
 
 def equilibrium(vb, vw, L):
-    # Auxillary Function for Cost (to be minimised)
+    """
+        Finds the equilibrium points in 2D Daisyworld.
+        Args:
+            vb: dA_b/dt function
+            vw: dA_w/dt function
+            L: Luminosity
+        Returns:
+            The coordinates and the stability of each equilibrium point
+    """
+
     def cost(A):
+        """
+            This is the function to be minimized in the scipy optimizer.
+            I'm using sum of the squares of dA_b/dt and dA_w/dt.
+            It's like the length of the arrow at each point in the vector field.
+        """
         Ab, Aw = A
         return (vb(Ab, Aw, L=L)) ** 2 + (vw(Ab, Aw, L=L)) ** 2
 
     # Root Finder
+    """
+        Here, I select 21 points like this: A = 0, 0.05, ..., 1.
+        But for 2D, I repeat this twice: for Ab and Aw.
+        The steps are the same as the 1D case, except I check the domain carefully.
+    """
     solutions = []
     testvec = np.linspace(0, 1, num=21)
     for Ab0 in testvec:
@@ -31,17 +50,23 @@ def equilibrium(vb, vw, L):
                     if [sb, sw] not in solutions:
                         solutions.append([sb, sw])
 
-    # Auxillary Function for Partial Derivatives
     def partial_derivative(func, var, point):
+        """
+            This is just a wrapper function to calculate partial derivative.
+        """
         args = point[:]
-
         def wraps(x):
             args[var] = x
             return func(*args, L=L)
-
         return derivative(wraps, point[var], dx=1e-5)
 
     # Stability Finder
+    """
+        In 1D, we just needed to find dv/dA.
+        In 2D, we need to calculate dv_b/dA_b, dv_b/dA_w, dv_w/dA_b, dv_w/dA_w.
+        These are encoded in the Jacobian matrix.
+        And then we just need to find the signs of the eigenvalues of the matrix.
+    """
     nature = []
     for s in solutions:
         eb, ew = s
@@ -55,15 +80,12 @@ def equilibrium(vb, vw, L):
             nature.append('Stable')
         else:
             nature.append('Unstable')
-
     return solutions, nature
 
 def plot_time_iteration(x, yb, yw, ax=None):
     ax = ax or plt.gca()
     ax.plot(x, yb, color='#8080ff', label='$A_b$')
     ax.plot(x, yw, color='#ff80ff', label='$A_w$')
-
-    # Formatting
     ax.set_xlim(0, x[-1])
     ax.set_ylim(-0.1, 1.1)
     ax.set_xlabel('$t$', fontsize=15)
@@ -76,7 +98,6 @@ def plot_state_space(xb, xw, yb, yw, eqs=None, ax=None):
     for i in range(len(yw)):
         yw[i, len(yw) - i:] = np.nan
         yw = np.ma.array(yw, mask=mask)
-
     ax = ax or plt.gca(aspect=1)
     ax.streamplot(xb, xw, yb, yw, color='#ff8080', density=1.5, linewidth=0.75)
 
@@ -94,7 +115,6 @@ def plot_state_space(xb, xw, yb, yw, eqs=None, ax=None):
                         markersize=7, label=labels['u'])
                 labels['u'] = '_nolegend_'
 
-    # Formatting
     ax.set_xlim(-0.1, 1.1)
     ax.set_ylim(-0.1, 1.1)
     ax.set_xlabel('$A_b$', fontsize=15)
@@ -147,7 +167,6 @@ def plot_bifurcation(x, y, elev=12.5, azim=-132.5):
                         markersize=6.5, label=labels['u'])
                 labels['u'] = '_nolegend_'
 
-    # Formatting
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.set_zlim(min(x), max(x))
