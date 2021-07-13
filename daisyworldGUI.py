@@ -46,7 +46,7 @@ class MainWindow(qtw.QMainWindow):
         tabs.addTab(WorldTab(DaisyWorld1), "One-Daisy")
         tabs.addTab(WorldTab(DaisyWorld2), "Two-Daisy")
         tabs.addTab(WorldTab(Bifurcation1), "1D Bifurcation")
-        # tabs.addTab(WorldTab(Bifurcation2), "2D Bifurcation")
+        tabs.addTab(WorldTab(Bifurcation2), "2D Bifurcation")
         layout.addWidget(tabs)
 
     def _spawnWindow(self, obj):
@@ -266,16 +266,19 @@ class FixedPoint:
         self.stable = stable
 
 class Module(ABC):
+    def generateFigure(self, width, height, dpi):
+        self.axes = []
+        fig = Figure(figsize=(width, height), dpi=dpi)
+        self.axes.append(fig.add_subplot(121))
+        self.axes.append(fig.add_subplot(122))
+        return fig
+
     @abstractmethod
     def setupEvolution(self):
         pass
 
     @abstractmethod
     def evolve(self):
-        pass
-
-    @abstractmethod
-    def generateFigure(self, width, height, dpi):
         pass
 
     @abstractmethod
@@ -319,13 +322,6 @@ class DaisyWorld1(Module):
         self.evolution.t.value += dt
         self.evolution.A.value += self.v(self.evolution.A.value) * dt
         self.evolution.v.value = self.v(self.evolution.A.value)
-
-    def generateFigure(self, width, height, dpi):
-        self.axes = []
-        fig = Figure(figsize=(width, height), dpi=dpi)
-        self.axes.append(fig.add_subplot(121))
-        self.axes.append(fig.add_subplot(122))
-        return fig
 
     def drawBackground(self):
         As = np.linspace(0, 1, num=101)
@@ -404,14 +400,6 @@ class DaisyWorld2(Module):
         self.evolution.Ab.value += self.vb(self.evolution.Ab.value, self.evolution.Aw.value) * dt
         self.evolution.Aw.value += self.vw(self.evolution.Ab.value, self.evolution.Aw.value) * dt
 
-    def generateFigure(self, width, height, dpi):
-        self.axes = []
-        fig = Figure(figsize=(width, height), dpi=dpi)
-        self.axes.append(fig.add_subplot(121))
-        self.axes.append(fig.add_subplot(122))
-        self.axes[1].set_aspect("equal")
-        return fig
-
     def drawBackground(self):
         Aws, Abs = np.mgrid[0:1:100j, 0:1:100j]
         vbs = self.vb(Abs, Aws)
@@ -476,6 +464,7 @@ class Bifurcation1(Module):
         self.parameters = Parameters()
         self.parameters.add("Lmin", Parameter("Luminosity Minimum", "L<sub>min</sub>", 0.5))
         self.parameters.add("Lmax", Parameter("Luminosity Maximum", "L<sub>max</sub>", 1.8))
+        self.parameters.add("dL", Parameter("Luminosity Steps", "L<sub>step</sub>", 0.025))
         self.parameters.add("ai", Parameter("Daisy Albedo", "a<sub>i</sub>", 0.75, unitRange=True))
         self.parameters.add("ag", Parameter("Ground Albedo", "a<sub>g</sub>", 0.5, unitRange=True))
         self.parameters.add("R", Parameter("Insulation Constant", "R", 0.2, unitRange=True))
@@ -498,21 +487,14 @@ class Bifurcation1(Module):
         self.evolution = Parameters()
         self.evolution.add("L", Parameter("Luminosity", "L", self.parameters.Lmin.value))
 
-    def evolve(self, dL=.025):
-        self.evolution.L.value += dL
-
-    def generateFigure(self, width, height, dpi):
-        self.axes = []
-        fig = Figure(figsize=(width, height), dpi=dpi)
-        self.axes.append(fig.add_subplot(121))
-        self.axes.append(fig.add_subplot(122))
-        return fig
+    def evolve(self):
+        self.evolution.L.value += self.parameters.dL.value
 
     def drawBackground(self):
+        self.axes[0].set_title("L = {:.03f}".format(self.evolution.L.value))
         As = np.linspace(0, 1, num=101)
         self.axes[0].plot(As, np.zeros(As.shape), ':', color="#8080ff")
         self.axes[0].plot(As, self.v(As), color="#8080ff")
-        self.axes[0].set_title("L = {:.03f}".format(self.evolution.L.value))
 
         def _cost(A):
             return self.v(A) ** 2
@@ -531,18 +513,134 @@ class Bifurcation1(Module):
                 self.fixedPoints.append(fp)
         for fp in self.fixedPoints:
             self.axes[0].plot(fp.coords[0], 0, "b^" if fp.stable else "rv", markersize=12, clip_on=False)
-
+            self.axes[1].plot(fp.coords[0], self.evolution.L.value, "b^" if fp.stable else "rv", markersize=12, clip_on=False)
+            
         self.axes[0].set_xlabel("Daisy Area ($A$)")
         self.axes[0].set_ylabel("Rate of Change of Daisy Area ($dA/dt$)")
         self.axes[0].set_xlim(0, 1)
         self.axes[1].set_xlabel("Daisy Area ($A$)")
         self.axes[1].set_ylabel("Luminosity ($L$)")
         self.axes[1].set_xlim(0, 1)
+        self.axes[1].set_ylim(self.parameters.Lmin.value, self.parameters.Lmax.value)
 
     def drawForeground(self):
         if self.evolution.L.value <= self.parameters.Lmax.value:
             self.axes[0].cla()
             self.drawBackground()
+
+class Bifurcation2(Module):
+    def __init__(self):
+        self.parameters = Parameters()
+        self.parameters.add("Lmin", Parameter("Luminosity Minimum", "L<sub>min</sub>", 0.5))
+        self.parameters.add("Lmax", Parameter("Luminosity Maximum", "L<sub>max</sub>", 1.8))
+        self.parameters.add("dL", Parameter("Luminosity Steps", "L<sub>step</sub>", 0.025))
+        self.parameters.add("ab", Parameter("Black Daisy Albedo", "a<sub>b</sub>", 0.25, unitRange=True))
+        self.parameters.add("aw", Parameter("White Daisy Albedo", "a<sub>w</sub>", 0.75, unitRange=True))
+        self.parameters.add("ag", Parameter("Ground Albedo", "a<sub>g</sub>", 0.5, unitRange=True))
+        self.parameters.add("R", Parameter("Insulation Constant", "R", 0.2, unitRange=True))
+        self.parameters.add("S", Parameter("Solar Constant", "S", 917.))
+        self.parameters.add("sigma", Parameter("Stefan-Boltzmann Constant", "σ", 5.67e-8))
+        self.parameters.add("Ti", Parameter("Ideal Growth Temperature", "T<sub>i</sub>", 22.5))
+        self.parameters.add("gamma", Parameter("Death Rate", "γ", 0.3, unitRange=True))
+
+        self.setupEvolution()
+
+    def vb(self, Ab, Aw):  # dA/dt of Black Daisy
+        ap = Aw * self.parameters.aw.value + Ab * self.parameters.ab.value + (1 - Aw - Ab) * self.parameters.ag.value  # Planet Albedo
+        Te = (self.evolution.L.value * (self.parameters.S.value / self.parameters.sigma.value) * (1 - ap)) ** 0.25  # Planet Temp
+        Tb = (self.parameters.R.value * self.evolution.L.value * (self.parameters.S.value / self.parameters.sigma.value) * \
+             (ap - self.parameters.ab.value) + (Te ** 4)) ** 0.25  # Black Daisy Temp
+        bb = 1 - (0.003265 * ((273.15 + self.parameters.Ti.value) - Tb) ** 2)  # Black Daisy Growth Rate
+        return Ab * ((1 - Ab - Aw) * bb - self.parameters.gamma.value)
+
+    def vw(self, Ab, Aw):  # dA/dt of White Daisy
+        ap = Aw * self.parameters.aw.value + Ab * self.parameters.ab.value + (1 - Aw - Ab) * self.parameters.ag.value  # Planet Albedo
+        Te = (self.evolution.L.value * (self.parameters.S.value / self.parameters.sigma.value) * (1 - ap)) ** 0.25  # Planet Temp
+        Tw = (self.parameters.R.value * self.evolution.L.value * (self.parameters.S.value / self.parameters.sigma.value) * \
+             (ap - self.parameters.aw.value) + (Te ** 4)) ** 0.25  # White Daisy Temp
+        bw = 1 - (0.003265 * ((273.15 + self.parameters.Ti.value) - Tw) ** 2)  # White Daisy Growth Rate
+        return Aw * ((1 - Aw - Ab) * bw - self.parameters.gamma.value)
+
+    def setupEvolution(self):
+        self.evolution = Parameters()
+        self.evolution.add("L", Parameter("Luminosity", "L", self.parameters.Lmin.value))
+
+    def evolve(self):
+        self.evolution.L.value += self.parameters.dL.value
+
+    def drawBackground(self):
+        self.axes[0].set_title("L = {:.03f}".format(self.evolution.L.value))
+        Aws, Abs = np.mgrid[0:1:100j, 0:1:100j]
+        vbs = self.vb(Abs, Aws)
+        vws = self.vw(Abs, Aws)
+        mask = np.zeros(vws.shape, dtype=bool)
+        for i in range(len(vws)):
+            vws[i, len(vws) - i:] = np.nan
+            vws = np.ma.array(vws, mask=mask)
+        self.axes[0].streamplot(Abs, Aws, vbs, vws, color="#8080ff", density=1.5)
+        
+        def _cost(A):
+            return self.vb(A[0], A[1]) ** 2 + self.vw(A[0], A[1]) ** 2
+        self.fixedPoints = []
+        xtol = 1e-5
+        ctol = 1e-7
+        testvec = np.linspace(0, 1, num=6)
+        for Ab0 in testvec:
+            for Aw0 in testvec:
+                if (Ab0 + Aw0) <= 1:
+                    A0 = np.array([Ab0, Aw0])
+                    res = minimize(_cost, A0, method="nelder-mead", options={'xtol': xtol})
+                    pb = round(res.x[0], 5)
+                    pw = round(res.x[1], 5)
+                    if ([pb, pw] not in [fps.coords for fps in self.fixedPoints]) and ((pb + pw) <= 1) and (pb >= 0) and (pw >= 0) and (_cost([pb, pw]) < ctol):
+                        fp = FixedPoint([pb, pw])
+                        fp.stable = self._JacobianStability(fp)
+                        self.fixedPoints.append(fp)
+        for fp in self.fixedPoints:
+            self.axes[0].plot(fp.coords[0], fp.coords[1], "b^" if fp.stable else "rv", markersize=12, clip_on=False)
+            self.axes[1].plot(fp.coords[0], fp.coords[1], self.evolution.L.value, "b^" if fp.stable else "rv", markersize=12, clip_on=False)
+        
+        self.axes[0].set_xlabel("Time ($t$)")
+        self.axes[0].set_ylabel("Daisy Area ($A$)")
+        self.axes[0].set_ylim(0, 1)
+        self.axes[1].set_xlabel("Black Daisy Area ($A_b$)")
+        self.axes[1].set_ylabel("White Daisy Area ($A_w$)")
+        self.axes[1].set_zlabel("Luminosity ($L$)")
+        self.axes[1].xaxis.labelpad=15
+        self.axes[1].yaxis.labelpad=15
+        self.axes[1].zaxis.labelpad=15
+        self.axes[1].set_xlim(0, 1)
+        self.axes[1].set_ylim(0, 1)
+        self.axes[1].set_zlim(self.parameters.Lmin.value, self.parameters.Lmax.value)
+
+    def drawForeground(self):
+        if self.evolution.L.value <= self.parameters.Lmax.value:
+            self.axes[0].cla()
+            self.drawBackground()
+
+    def generateFigure(self, width, height, dpi):
+        self.axes = []
+        fig = Figure(figsize=(width, height), dpi=dpi)
+        self.axes.append(fig.add_subplot(121))
+        self.axes.append(fig.add_subplot(122, projection='3d'))
+        # self.axes[1].view_init(elev=0, azim=0)
+        return fig
+
+    def _JacobianStability(self, fixedPoint):
+        def partial_derivative(v, coords, idx):
+            args = coords[:]
+            def wraps(x):
+                args[idx] = x
+                return v(*args)
+            return derivative(wraps, coords[idx], dx=1e-5)
+
+        j00 = partial_derivative(self.vb, fixedPoint.coords, 0)
+        j01 = partial_derivative(self.vb, fixedPoint.coords, 1)
+        j10 = partial_derivative(self.vw, fixedPoint.coords, 0)
+        j11 = partial_derivative(self.vw, fixedPoint.coords, 1)
+        jacobian = np.array([[j00, j01], [j10, j11]])
+        eigval, _ = np.linalg.eig(jacobian)
+        return (eigval[0] < 0 and eigval[1] < 0)
 
 if __name__ == "__main__":
     app = qtw.QApplication(sys.argv)
