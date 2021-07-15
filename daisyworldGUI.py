@@ -439,8 +439,8 @@ class DaisyWorld2(Module):
         self.axes[1].set_ylim(-0.05, 1.05)
     
     def drawForeground(self):
-        self.axes[0].plot(self.evolution.t.value, self.evolution.Ab.value, color="#ffc000", marker='o')
-        self.axes[0].plot(self.evolution.t.value, self.evolution.Aw.value, color="#ff00c0", marker='o')
+        self.axes[0].plot(self.evolution.t.value, self.evolution.Ab.value, color="#ff00c0", marker='o')
+        self.axes[0].plot(self.evolution.t.value, self.evolution.Aw.value, color="#ffc000", marker='o')
         self.axes[1].plot(self.evolution.Ab.value, self.evolution.Aw.value, color="#ff8000", marker='o')
 
     def _JacobianStability(self, fixedPoint):

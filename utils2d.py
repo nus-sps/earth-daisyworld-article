@@ -98,7 +98,8 @@ def plot_state_space(xb, xw, yb, yw, eqs=None, ax=None):
     for i in range(len(yw)):
         yw[i, len(yw) - i:] = np.nan
         yw = np.ma.array(yw, mask=mask)
-    ax = ax or plt.gca(aspect=1)
+    ax = ax or plt.gca()
+    ax.set_aspect('equal')
     ax.streamplot(xb, xw, yb, yw, color='#ff8080', density=1.5, linewidth=0.75)
 
     # Equilibria
@@ -151,7 +152,7 @@ def animated_comparison(t_data, s_data, eqs=None):
 
 def plot_bifurcation(x, y, elev=12.5, azim=-132.5):
     plt.figure()
-    ax = plt.gca(projection='3d')
+    ax = plt.subplot(111, projection='3d')
 
     labels = {'s': 'Stable', 'u': 'Unstable'}
     for j in range(len(x)):
