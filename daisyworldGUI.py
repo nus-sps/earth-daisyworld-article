@@ -507,7 +507,6 @@ class Bifurcation1(Module):
             res = minimize(_cost, A0, method="nelder-mead", options={"xtol": xtol})
             p = round(res.x[0], 5)
             if (p not in [fps.coords for fps in self.fixedPoints]) and (0 <= p <= 1) and (_cost(p) < ctol):
-                # the _cost check is necessary for the nelder-mead method
                 fp = FixedPoint([p])
                 fp.stable = (self.v(p + dp) - self.v(p - dp) < 0)
                 self.fixedPoints.append(fp)
