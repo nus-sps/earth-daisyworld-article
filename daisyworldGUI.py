@@ -601,7 +601,8 @@ class Bifurcation2(Module):
         
         self.axes[0].set_xlabel("Time ($t$)")
         self.axes[0].set_ylabel("Daisy Area ($A$)")
-        self.axes[0].set_ylim(0, 1)
+        self.axes[0].set_xlim(-0.05, 1.05)
+        self.axes[0].set_ylim(-0.05, 1.05)
         self.axes[1].set_xlabel("Black Daisy Area ($A_b$)")
         self.axes[1].set_ylabel("White Daisy Area ($A_w$)")
         self.axes[1].set_zlabel("Luminosity ($L$)")

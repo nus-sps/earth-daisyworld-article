@@ -68,3 +68,16 @@ for l in Luminosities:
     fixed_points_list.append(utils2d.equilibrium(vb, vw))
 utils2d.plot_bifurcation(Luminosities, fixed_points_list)
 plt.show()
+
+# # Example: Save Bifurcation Images
+# import os
+# foldername = "./tmp/"
+# if not os.path.exists(foldername):
+#     os.makedirs(foldername)
+# for i in range(len(Luminosities)):
+#     plt.figure()
+#     plt.suptitle("Luminosity: {:.3f}".format(Luminosities[i]))
+#     L = Luminosities[i]
+#     utils2d.plot_state_space(Abs, Aws, vb(Abs, Aws), vw(Abs, Aws), fixed_points_list[i])
+#     plt.savefig(foldername + "{:.3f}".format(Luminosities[i]) + ".png")
+#     plt.close('all')
