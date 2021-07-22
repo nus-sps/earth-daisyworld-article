@@ -41,16 +41,21 @@ def equilibrium(vb, vw, nTestvec=21, dA=1e-5, ctol=1e-7, xtol=1e-7):
                         fixedPoints[(pb, pw)] = isStable
     return fixedPoints
 
-def plot_time_iteration(x, yb, yw, ax=None):
-    if ax is None:
-        ax = plt.gca()
-        ax.plot(x, yb, '.', color='#ff00c0', label='$A_b$')
-        ax.plot(x, yw, '.', color='#ffc000', label='$A_w$')
-        ax.legend()
+def plot_time_iteration(x, yb, yw, ax=None, plot=True):
+    ax = ax or plt.gca()
+    l0, l1 = None, None
+    ax.legend(handles=[
+        mlines.Line2D([], [], color='#ff00c0', marker='.', linestyle='None', label='$A_b$'),
+        mlines.Line2D([], [], color='#ffc000', marker='.', linestyle='None', label='$A_w$')
+    ])
+    if plot:
+        l0, = ax.plot(x, yb, '.', color='#ff00c0')
+        l1, = ax.plot(x, yw, '.', color='#ffc000')
     ax.set_xlim(0, x[-1])
     ax.set_ylim(0, 1)
     ax.set_xlabel('Time ($t$)')
     ax.set_ylabel('Daisy Area ($A$)')
+    return l0, l1
 
 def plot_state_space(xb, xw, yb, yw, fixedPoints=None, ax=None):
     ax = ax or plt.gca()
@@ -59,7 +64,7 @@ def plot_state_space(xb, xw, yb, yw, fixedPoints=None, ax=None):
     ax.set_ylim(-0.05, 1.05)
     ax.set_xlabel('Black Daisy Area ($A_b$)')
     ax.set_ylabel('White Daisy Area ($A_w$)')
-    plt.legend(handles=[
+    ax.legend(handles=[
         mlines.Line2D([], [], color='b', marker='^', linestyle='None', label='Stable'),
         mlines.Line2D([], [], color='r', marker='v', linestyle='None', label='Unstable')
     ])
@@ -67,10 +72,13 @@ def plot_state_space(xb, xw, yb, yw, fixedPoints=None, ax=None):
     for i in range(len(yw)):
         yw[i, len(yw) - i:] = np.nan
         yw = np.ma.array(yw, mask=mask)  # impose Ab+Aw >= 1
-    ax.streamplot(xb, xw, yb, yw, color='#8080ff', density=1.5, linewidth=0.75)
+    l0 = ax.streamplot(xb, xw, yb, yw, color='#8080ff', density=1.5, linewidth=0.75)
+    l1 = []
     if fixedPoints is not None:
         for k in fixedPoints.keys():
-            ax.plot(k[0], k[1], "b^" if fixedPoints[k] else "rv", clip_on=False)
+            _l1, = ax.plot(k[0], k[1], "b^" if fixedPoints[k] else "rv", clip_on=False)
+            l1.append(_l1)
+    return l0, l1
 
 def plot_together(t_data, s_data, fixedPoints=None):
     tx, tyb, tyw = t_data
@@ -78,7 +86,7 @@ def plot_together(t_data, s_data, fixedPoints=None):
     fig = plt.figure(figsize=(12, 6))
     ax1 = fig.add_subplot(121)
     ax2 = fig.add_subplot(122)
-    plot_time_iteration(tx, tyw, tyb, ax1)
+    plot_time_iteration(tx, tyw, tyb, ax1, plot=False)
     plot_state_space(sxb, sxw, syb, syw, fixedPoints, ax2)
     traj1b, = ax1.plot(tx[0], tyb[0], '.', color='#ff00c0')
     traj1w, = ax1.plot(tx[0], tyw[0], '.', color='#ffc000')
@@ -92,9 +100,9 @@ def plot_together(t_data, s_data, fixedPoints=None):
                                   interval=50 / len(tx), blit=True, repeat=False)
     return ani
 
-def plot_bifurcation(x, y):
-    plt.figure()
-    ax = plt.subplot(111, projection='3d')
+def plot_bifurcation(x, y, ax=None):
+    if ax is None:
+        _, ax = plt.subplots(subplot_kw=dict(projection="3d"))
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.set_zlim(min(x), max(x))
@@ -105,6 +113,9 @@ def plot_bifurcation(x, y):
         mlines.Line2D([], [], color='b', marker='^', linestyle='None', label='Stable'),
         mlines.Line2D([], [], color='r', marker='v', linestyle='None', label='Unstable')
     ])
+    ls = []
     for i in range(len(x)):
         for k in y[i].keys():
-            ax.plot(k[0], k[1], x[i], "b^" if y[i][k] else "rv", clip_on=False)
+            _ls, = ax.plot(k[0], k[1], x[i], "b^" if y[i][k] else "rv", clip_on=False)
+            ls.append(_ls)
+    return ls

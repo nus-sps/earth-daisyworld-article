@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import utils1d
 
 # Define Parameters
-L = 1.000        # Luminosity
+L = 1.0          # Luminosity
 ai = 0.75        # Daisy Albedo
 ag = 0.5         # Ground Albedo
 R = 0.2          # Insulation Constant

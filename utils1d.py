@@ -23,14 +23,16 @@ def equilibrium(v, nTestvec=21, dA=1e-5, ctol=1e-7, xtol=1e-7):
             fixedPoints[p] = isStable
     return fixedPoints
 
-def plot_time_iteration(x, y, ax=None):
-    if ax is None:
-        ax = plt.gca()
-        ax.plot(x, y, '.', color='#ff8080')
+def plot_time_iteration(x, y, ax=None, plot=True):
+    ax = ax or plt.gca()
+    l0 = None
+    if plot:
+        l0, = ax.plot(x, y, '.', color='#ff8080')
     ax.set_xlim(0, x[-1])
     ax.set_ylim(0, 1)
     ax.set_xlabel('Time ($t$)')
     ax.set_ylabel('Daisy Area ($A$)')
+    return l0,
 
 def plot_state_space(x, y, fixedPoints=None, ax=None):
     ax = ax or plt.gca()
@@ -41,11 +43,15 @@ def plot_state_space(x, y, fixedPoints=None, ax=None):
         mlines.Line2D([], [], color='b', marker='^', linestyle='None', label='Stable'),
         mlines.Line2D([], [], color='r', marker='v', linestyle='None', label='Unstable')
     ])
-    ax.plot(x, np.zeros(len(x)), ':', color='#8080ff')
-    ax.plot(x, y, '-', color='#8080ff')
+    _l00, = ax.plot(x, np.zeros(len(x)), ':', color='#8080ff')
+    _l01, = ax.plot(x, y, '-', color='#8080ff')
+    l0 = (_l00, _l01)
+    l1 = []
     if fixedPoints is not None:
         for k in fixedPoints.keys():
-            ax.plot(k, 0, "b^" if fixedPoints[k] else "rv", clip_on=False)
+            _l1, = ax.plot(k, 0, "b^" if fixedPoints[k] else "rv", clip_on=False)
+            l1.append(_l1)
+    return l0, l1
 
 def plot_together(t_data, s_data, fixedPoints=None):
     tx, ty = t_data
@@ -54,7 +60,7 @@ def plot_together(t_data, s_data, fixedPoints=None):
     fig = plt.figure(figsize=(12, 6))
     ax1 = fig.add_subplot(121)
     ax2 = fig.add_subplot(122)
-    plot_time_iteration(tx, ty, ax1)
+    plot_time_iteration(tx, ty, ax1, plot=False)
     plot_state_space(sx, sy, fixedPoints, ax2)
     traj1, = ax1.plot(tx[0], ty[0], '.', color='#ff8080')
     traj2, = ax2.plot(ty[0], tv[0], '.', color='#ff8080')
@@ -66,8 +72,8 @@ def plot_together(t_data, s_data, fixedPoints=None):
                                   interval=50 / len(tx), blit=True, repeat=False)
     return ani
 
-def plot_bifurcation(x, y):
-    ax = plt.gca()
+def plot_bifurcation(x, y, ax=None):
+    ax = ax or plt.gca()
     ax.set_xlim(0, 1)
     ax.set_ylim(min(x), max(x))
     ax.set_xlabel('Daisy Area ($A$)')
@@ -76,6 +82,9 @@ def plot_bifurcation(x, y):
         mlines.Line2D([], [], color='b', marker='^', linestyle='None', label='Stable'),
         mlines.Line2D([], [], color='r', marker='v', linestyle='None', label='Unstable')
     ])
+    l0 = []
     for i in range(len(x)):
         for k in y[i].keys():
-            ax.plot(k, x[i], "b^" if y[i][k] else "rv", clip_on=False)
+            _l0, = ax.plot(k, x[i], "b^" if y[i][k] else "rv", clip_on=False)
+            l0.append(_l0)
+    return l0,

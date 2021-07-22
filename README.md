@@ -14,8 +14,8 @@ and then run `daisyworldGUI.py`.
 - `daisyworldGUI.py` is a stand-alone GUI application based on PyQT5. Useful for codeless lessons.
 - `daisyworld1.py` and `daisyworld2.py` are python scripts that visualize the dynamics of Daisyworld. Require `utils1d.py` and `utils2d.py`.
 - `utils1d.py` and `utils2d.py` contain utility functions for plotting and finding steady state position/stability so that students can instead focus on the Daisyworld model itself.
-- `bif2vid.py` generates a bifurcation video for the 2D Daisyworld.
 - `icon.ico` is a pretty 16-by-16 icon for the Daisyworld GUI application.
+- `figures.py` is a script to generate the figures for the article.
 
 ## Screenshots
 
