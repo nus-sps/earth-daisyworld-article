@@ -15,7 +15,6 @@ and then run `daisyworldGUI.py`.
 - `daisyworld1.py` and `daisyworld2.py` are python scripts that visualize the dynamics of Daisyworld. Require `utils1d.py` and `utils2d.py`.
 - `utils1d.py` and `utils2d.py` contain utility functions for plotting and finding steady state position/stability so that students can instead focus on the Daisyworld model itself.
 - `icon.ico` is a pretty 16-by-16 icon for the Daisyworld GUI application.
-- `figures.py` is a script to generate the figures for the article.
 
 ## Screenshot
 ![Screenshot](./article/Diagrams/gui.png)
