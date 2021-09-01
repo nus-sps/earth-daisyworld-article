@@ -13,7 +13,7 @@ import PyQt5.QtCore as qtc
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib import rcParams
-rcParams['font.size'] = 18
+rcParams['font.size'] = 10
 
 class MainWindow(qtw.QMainWindow):
     def __init__(self):
@@ -139,8 +139,9 @@ class WorldTab(qtw.QWidget):
         inputbox.setFixedWidth(width)
         return inputbox
     
-    def _newButton(self, text, width=300, function=None, *args):
+    def _newButton(self, text, height=30, width=300, function=None, *args):
         button = qtw.QPushButton("{}".format(text))
+        button.setFixedHeight(height)
         button.setFixedWidth(width)
         if function is not None:
             button.clicked.connect(lambda: function(*args))
@@ -168,9 +169,9 @@ class WorldTab(qtw.QWidget):
                 self.canvas.setDaisyWorld(self.module)
                 self.canvas.figInit()
                 self.canvas.figRun()
-                self.buttons[1].setStyleSheet("color: black; font-size: 27px")
+                self.buttons[1].setStyleSheet("color: black;")
             except Exception as e:
-                self.buttons[1].setStyleSheet("color: red; font-size: 27px")
+                self.buttons[1].setStyleSheet("color: red;")
         self.canvas.isRunning = not self.canvas.isRunning
 
     def _mod2box(self):
@@ -269,6 +270,7 @@ class Module(ABC):
     def generateFigure(self, width, height, dpi):
         self.axes = []
         fig = Figure(figsize=(width, height), dpi=dpi)
+        fig.set_tight_layout(True)
         self.axes.append(fig.add_subplot(121))
         self.axes.append(fig.add_subplot(122))
         return fig
